@@ -1,8 +1,13 @@
+![Tangle Network Banner](https://raw.githubusercontent.com/tangle-network/tangle/refs/heads/main/assets/Tangle%20%20Banner.png)
+
 # openclaw-sandbox-blueprint
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/cv8EfJu3Tn)
+[![Twitter](https://img.shields.io/twitter/follow/tangle_network?style=social)](https://twitter.com/tangle_network)
 
 Product-layer scaffold for hosted OpenClaw instances running on top of sandbox runtime contracts.
 
-## Workspace Shape
+## Workspace shape
 
 - `openclaw-hosting-blueprint-lib/bin` - runnable entrypoints (`dev-server`, `smoke-test`)
 - `openclaw-hosting-blueprint-lib/src` - product-layer HTTP service, jobs, runtime adapter boundary
@@ -55,10 +60,11 @@ npm start
 npm run smoke
 ```
 
-## Roadmap
+## Incremental engineering workflow
 
-- Replace in-memory job runner with durable queue + retries.
-- Replace mock runtime adapter with real sandbox-runtime API client.
-- Add authn/authz and multi-tenant project scoping.
-- Add audit events and usage/billing hooks.
-- Add richer control-plane flows (secrets, network policy, logs, metrics).
+- Keep state changes in lifecycle jobs only.
+- Keep read-only operations out of jobs and inside query endpoints.
+- Ship in small, composable PRs with explicit validation evidence.
+- Keep architecture notes current as behavior evolves.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, commit, and PR standards.
