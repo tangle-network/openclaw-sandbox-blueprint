@@ -1,0 +1,4 @@
+- telegram-chat.read
+- telegram-chat.send
+- contacts.lookup
+- analytics.events.write

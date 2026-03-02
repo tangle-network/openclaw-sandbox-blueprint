@@ -1,0 +1,4 @@
+- discord-messages.read
+- discord-messages.post
+- discord-moderation.flag
+- knowledgebase.search

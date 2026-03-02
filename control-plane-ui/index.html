@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenClaw Hosting Control Plane</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <h1>OpenClaw Hosting Control Plane</h1>
+      <p class="subtitle">Launch a hosted OpenClaw instance from a template pack.</p>
+
+      <form id="launch-form" class="card">
+        <label>
+          Instance name
+          <input name="name" placeholder="team-assistant" required />
+        </label>
+
+        <label>
+          Template pack
+          <select name="templatePackId" id="template-select" required></select>
+        </label>
+
+        <button type="submit">Launch Instance</button>
+      </form>
+
+      <section class="card">
+        <h2>Hosted Instances</h2>
+        <ul id="instance-list"></ul>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

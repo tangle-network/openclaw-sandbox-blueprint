@@ -1,0 +1,6 @@
+{
+  "id": "ops",
+  "name": "Ops Pack",
+  "mode": "pack",
+  "description": "Operational runbook assistant for on-call and incident workflows."
+}

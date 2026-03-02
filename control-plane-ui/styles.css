@@ -1,0 +1,52 @@
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: #f2f4f8;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.subtitle {
+  color: #4d5b75;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #d8deea;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+input,
+select,
+button {
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #b9c5da;
+  font: inherit;
+}
+
+button {
+  background: #103d76;
+  color: white;
+  cursor: pointer;
+}
+
+#instance-list {
+  padding-left: 18px;
+}
