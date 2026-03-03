@@ -39,6 +39,19 @@ pub const JOB_DELETE: u8 = 3;
 pub const JOB_RESULT_SUCCESS: &str = "success";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Input limits — defensive bounds against untrusted on-chain input.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Maximum length for an instance name.
+pub const MAX_NAME_LEN: usize = 256;
+/// Maximum length for a template pack ID.
+pub const MAX_TEMPLATE_PACK_ID_LEN: usize = 128;
+/// Maximum length for caller-supplied config JSON (64 KiB).
+pub const MAX_CONFIG_JSON_LEN: usize = 65_536;
+/// Maximum length for an instance ID.
+pub const MAX_INSTANCE_ID_LEN: usize = 128;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ABI types for on-chain job I/O
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -108,5 +121,13 @@ mod tests {
     #[test]
     fn router_builds_without_panic() {
         let _ = router();
+    }
+
+    #[test]
+    fn input_limits_are_sane() {
+        assert!(MAX_NAME_LEN >= 1);
+        assert!(MAX_TEMPLATE_PACK_ID_LEN >= 1);
+        assert!(MAX_CONFIG_JSON_LEN >= 2); // minimum valid JSON: "{}"
+        assert!(MAX_INSTANCE_ID_LEN >= 36); // UUID v4 is 36 chars
     }
 }

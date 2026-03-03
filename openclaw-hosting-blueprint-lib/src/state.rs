@@ -16,8 +16,6 @@ use crate::error::{HostingError, Result};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InstanceState {
-    /// Instance record created, runtime not yet provisioned.
-    Provisioning,
     /// Instance is stopped (created but not running, or explicitly stopped).
     Stopped,
     /// Instance is running.
@@ -29,7 +27,6 @@ pub enum InstanceState {
 impl std::fmt::Display for InstanceState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Provisioning => write!(f, "provisioning"),
             Self::Stopped => write!(f, "stopped"),
             Self::Running => write!(f, "running"),
             Self::Deleted => write!(f, "deleted"),
@@ -143,7 +140,6 @@ mod tests {
 
     #[test]
     fn instance_state_display() {
-        assert_eq!(InstanceState::Provisioning.to_string(), "provisioning");
         assert_eq!(InstanceState::Stopped.to_string(), "stopped");
         assert_eq!(InstanceState::Running.to_string(), "running");
         assert_eq!(InstanceState::Deleted.to_string(), "deleted");
@@ -152,7 +148,6 @@ mod tests {
     #[test]
     fn instance_state_roundtrip() {
         let states = [
-            InstanceState::Provisioning,
             InstanceState::Stopped,
             InstanceState::Running,
             InstanceState::Deleted,

@@ -10,7 +10,10 @@ use tracing::info;
 
 use crate::error::HostingError;
 use crate::state::{self, InstanceRecord, InstanceState};
-use crate::{CreateInstanceRequest, InstanceIdRequest, InstanceResponse, JOB_RESULT_SUCCESS};
+use crate::{
+    CreateInstanceRequest, InstanceIdRequest, InstanceResponse, JOB_RESULT_SUCCESS,
+    MAX_CONFIG_JSON_LEN, MAX_INSTANCE_ID_LEN, MAX_NAME_LEN, MAX_TEMPLATE_PACK_ID_LEN,
+};
 
 /// Format raw address bytes as a checksummed hex string.
 fn address_hex(raw: &[u8; 20]) -> String {
@@ -34,8 +37,21 @@ pub async fn create_instance(
     if name.is_empty() {
         return Err("instance name must not be empty".to_string());
     }
+    if name.len() > MAX_NAME_LEN {
+        return Err(format!("instance name exceeds {MAX_NAME_LEN} byte limit"));
+    }
     if template_pack_id.is_empty() {
         return Err("template_pack_id must not be empty".to_string());
+    }
+    if template_pack_id.len() > MAX_TEMPLATE_PACK_ID_LEN {
+        return Err(format!(
+            "template_pack_id exceeds {MAX_TEMPLATE_PACK_ID_LEN} byte limit"
+        ));
+    }
+    if config_json.len() > MAX_CONFIG_JSON_LEN {
+        return Err(format!(
+            "config_json exceeds {MAX_CONFIG_JSON_LEN} byte limit"
+        ));
     }
     if !config_json.is_empty() {
         serde_json::from_str::<serde_json::Value>(&config_json)
@@ -182,6 +198,11 @@ pub async fn delete_instance(
 fn get_owned_instance(instance_id: &str, caller_hex: &str) -> Result<InstanceRecord, String> {
     if instance_id.is_empty() {
         return Err("instance_id must not be empty".to_string());
+    }
+    if instance_id.len() > MAX_INSTANCE_ID_LEN {
+        return Err(format!(
+            "instance_id exceeds {MAX_INSTANCE_ID_LEN} byte limit"
+        ));
     }
 
     let record = state::get_instance(instance_id)
