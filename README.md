@@ -143,14 +143,40 @@ Execution target behavior:
 ## Dependency on sandbox-runtime contracts
 
 This blueprint is a **product layer** over sandbox runtime contracts. It does
-not implement VM/Firecracker orchestration directly. The runtime adapter
-boundary is defined and wired in the lib crate:
+not implement VM/Firecracker orchestration directly. It does implement a real
+Docker execution backend for lifecycle operations. The runtime adapter boundary
+is defined and wired in the lib crate:
 
 - `InstanceRuntimeAdapter` trait = product/runtime integration contract
-- `LocalStateRuntimeAdapter` = default local projection adapter (current)
+- `LocalStateRuntimeAdapter` = default local projection adapter
+- `DockerRuntimeAdapter` = lifecycle execution through Docker CLI (`create/start/stop/rm`)
 
 Job handlers call the adapter, not storage internals directly. A future
-sandbox-runtime-backed adapter can be injected without rewriting job handlers.
+sandbox-runtime-backed adapter (for microVM/Firecracker) can be injected
+without rewriting job handlers.
+
+## Real execution backend (Docker)
+
+Enable Docker-backed lifecycle execution:
+
+```bash
+export OPENCLAW_RUNTIME_BACKEND=docker
+export OPENCLAW_IMAGE_OPENCLAW=ghcr.io/<org>/<openclaw-image>:<tag>
+export OPENCLAW_IMAGE_NANOCLAW=ghcr.io/<org>/<nanoclaw-image>:<tag>
+export OPENCLAW_IMAGE_IRONCLAW=ghcr.io/<org>/<ironclaw-image>:<tag>
+export OPENCLAW_DOCKER_PULL=true # optional, default true
+```
+
+Behavior:
+
+- `create` creates a container from the variant-mapped image.
+- `start` runs `docker start`.
+- `stop` runs `docker stop`.
+- `delete` runs `docker rm -f`.
+- query surfaces include runtime metadata (`backend`, image, container status, last error).
+
+This repository does not publish or bundle the variant images. You must provide
+valid image references for your environment.
 
 ## State location
 

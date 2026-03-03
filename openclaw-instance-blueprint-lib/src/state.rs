@@ -139,6 +139,36 @@ impl Default for UiAccess {
     }
 }
 
+/// Runtime binding details for an instance lifecycle backend.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeBinding {
+    #[serde(default)]
+    pub backend: String,
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub container_name: Option<String>,
+    #[serde(default)]
+    pub container_id: Option<String>,
+    #[serde(default)]
+    pub container_status: Option<String>,
+    #[serde(default)]
+    pub last_error: Option<String>,
+}
+
+impl Default for RuntimeBinding {
+    fn default() -> Self {
+        Self {
+            backend: "local".to_string(),
+            image: None,
+            container_name: None,
+            container_id: None,
+            container_status: None,
+            last_error: None,
+        }
+    }
+}
+
 /// A OpenClaw instance record.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstanceRecord {
@@ -153,6 +183,8 @@ pub struct InstanceRecord {
     pub owner: String,
     #[serde(default)]
     pub ui_access: UiAccess,
+    #[serde(default)]
+    pub runtime: RuntimeBinding,
     #[serde(default)]
     pub execution_target: ExecutionTarget,
     pub state: InstanceState,
@@ -300,6 +332,7 @@ mod tests {
             config_json: String::new(),
             owner: "0x0000000000000000000000000000000000000001".to_string(),
             ui_access: UiAccess::default(),
+            runtime: RuntimeBinding::default(),
             execution_target: ExecutionTarget::Standard,
             state,
             created_at: 1000,
@@ -380,6 +413,7 @@ mod tests {
         assert_eq!(record.ui_access.auth_mode, UiAuthMode::WalletSignature);
         assert!(record.ui_access.owner_only);
         assert!(record.ui_access.public_url.is_none());
+        assert_eq!(record.runtime.backend, "local");
         assert_eq!(record.execution_target, ExecutionTarget::Standard);
     }
 }

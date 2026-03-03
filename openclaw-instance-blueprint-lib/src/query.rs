@@ -20,6 +20,17 @@ pub struct UiAccessView {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeView {
+    pub backend: String,
+    pub image: Option<String>,
+    pub container_name: Option<String>,
+    pub container_id: Option<String>,
+    pub container_status: Option<String>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InstanceView {
     pub id: String,
     pub name: String,
@@ -31,6 +42,7 @@ pub struct InstanceView {
     pub created_at: i64,
     pub updated_at: i64,
     pub ui_access: UiAccessView,
+    pub runtime: RuntimeView,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -57,6 +69,14 @@ pub fn instance_view(record: &InstanceRecord) -> InstanceView {
             tunnel_status: record.ui_access.tunnel_status.to_string(),
             auth_mode: record.ui_access.auth_mode.to_string(),
             owner_only: record.ui_access.owner_only,
+        },
+        runtime: RuntimeView {
+            backend: record.runtime.backend.clone(),
+            image: record.runtime.image.clone(),
+            container_name: record.runtime.container_name.clone(),
+            container_id: record.runtime.container_id.clone(),
+            container_status: record.runtime.container_status.clone(),
+            last_error: record.runtime.last_error.clone(),
         },
     }
 }
