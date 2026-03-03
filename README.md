@@ -123,6 +123,8 @@ Supported values:
 - `claw_variant`: `openclaw` | `nanoclaw` | `ironclaw`
 - `ui.auth_mode`: `wallet_signature` | `access_token`
 - `ui.expose_public_url`: defaults to `true`
+- when `ui.auth_mode=access_token`, session login uses operator-side
+  `OPENCLAW_UI_ACCESS_TOKEN` (not `config_json`)
 
 Tunnel/public URL behavior:
 

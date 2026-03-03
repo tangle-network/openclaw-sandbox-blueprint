@@ -270,11 +270,14 @@ fn authorize(auth: &AuthService, headers: &HeaderMap) -> Result<SessionClaims, A
     let raw = raw
         .to_str()
         .map_err(|_| ApiError::Unauthorized("invalid Authorization header".to_string()))?;
-    let Some(token) = raw.strip_prefix("Bearer ") else {
+    let mut parts = raw.splitn(2, ' ');
+    let scheme = parts.next().unwrap_or_default();
+    let token = parts.next().unwrap_or_default();
+    if !scheme.eq_ignore_ascii_case("bearer") {
         return Err(ApiError::Unauthorized(
             "Authorization must use Bearer token".to_string(),
         ));
-    };
+    }
     auth.resolve_bearer(token.trim())
         .ok_or_else(|| ApiError::Unauthorized("invalid or expired bearer token".to_string()))
 }

@@ -135,6 +135,7 @@ Create requests accept optional `config_json` profile settings:
 - `ui.expose_public_url`: bool (default `true`)
 - `ui.subdomain`: optional preferred subdomain
 - `ui.auth_mode`: `wallet_signature` | `access_token`
+- `access_token` sessions validate against `OPENCLAW_UI_ACCESS_TOKEN` (operator-side env)
 
 Persisted instance records include:
 

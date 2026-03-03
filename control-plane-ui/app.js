@@ -26,10 +26,21 @@ async function getJson(path, options = {}) {
     ...options
   });
 
-  const body = await response.json();
+  let body = null;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    body = await response.json();
+  } else {
+    const raw = await response.text();
+    body = { error: { message: raw || "request failed" } };
+  }
   if (!response.ok) {
     const message = body?.error?.message ?? body?.error ?? "request failed";
-    throw new Error(message);
+    const code = body?.error?.code;
+    const requestId = body?.requestId;
+    const suffix = [code, requestId].filter(Boolean).join(" / ");
+    const fullMessage = suffix.length > 0 ? `${message} (${suffix})` : message;
+    throw new Error(fullMessage);
   }
   return body;
 }
@@ -92,6 +103,15 @@ async function renderInstances() {
       button.type = "button";
       button.textContent = label;
       button.style.marginLeft = "4px";
+      if (label === "start" && instance.status !== "stopped") {
+        button.disabled = true;
+      }
+      if (label === "stop" && instance.status !== "running") {
+        button.disabled = true;
+      }
+      if (label === "delete" && instance.status === "deleted") {
+        button.disabled = true;
+      }
       button.addEventListener("click", async () => {
         if (label === "delete") {
           const confirmed = window.confirm(
@@ -165,6 +185,7 @@ document.querySelector("#wallet-challenge-form").addEventListener("submit", asyn
       })
     });
     document.querySelector("#challenge-id").value = challenge.challengeId ?? "";
+    document.querySelector("#challenge-message").value = challenge.message ?? "";
     setStatus("Wallet challenge created. Sign the returned challenge message and submit signature.");
   } catch (error) {
     setStatus(`Challenge creation failed: ${error.message}`, true);

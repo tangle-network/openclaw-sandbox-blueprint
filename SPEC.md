@@ -23,7 +23,7 @@ orchestration on the Tangle network.
 ## Out of scope
 
 - Real Firecracker/VM orchestration (delegated to sandbox runtime).
-- Operator HTTP API for queries (planned, not yet wired).
+- Multi-tenant hardened operator API deployment (rate limiting, WAF, external IdP).
 - Durable queueing beyond file-backed JSON store.
-- AuthN/AuthZ, billing, and production policy enforcement.
+- Billing and production policy enforcement.
 - Control-plane UI backend (static reference UI retained for development).
