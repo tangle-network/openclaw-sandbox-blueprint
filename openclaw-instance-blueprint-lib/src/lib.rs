@@ -23,6 +23,10 @@ use blueprint_sdk::Job;
 use blueprint_sdk::Router;
 use blueprint_sdk::alloy::sol;
 use blueprint_sdk::tangle::TangleLayer;
+pub use claw_runtime_access_control::{
+    AUTH_MODE_BEARER, CANONICAL_UI_AUTH_MODE_ENV, CANONICAL_UI_BEARER_TOKEN_ENV,
+    ClawProductVariant, UiBearerCredential, variant_compat_token_env_keys,
+};
 
 pub use jobs::lifecycle::{create_instance, delete_instance, start_instance, stop_instance};
 pub use runtime_adapter::{

@@ -18,6 +18,14 @@ backend; Firecracker/microVM substrate remains delegated.
 
 ## Crate structure
 
+### `claw-runtime-access-control`
+
+Shared ingress access primitives:
+
+- Canonical env keys for UI auth (`CLAW_UI_AUTH_MODE`, `CLAW_UI_BEARER_TOKEN`)
+- Per-instance bearer token generation
+- Variant compatibility alias mapping (OpenClaw/NanoClaw/IronClaw)
+
 ### `openclaw-instance-blueprint-lib`
 
 Library crate containing all business logic:

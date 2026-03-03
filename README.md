@@ -18,6 +18,7 @@ executes the matching handler, and submits results back to the chain.
 
 ```
 Cargo.toml                         # workspace root
+claw-runtime-access-control/       # shared ingress auth primitives (reusable)
 openclaw-instance-blueprint-lib/    # library: sol! types, jobs, state, router
 openclaw-instance-blueprint-bin/    # binary: runner entry point (main.rs)
 openclaw-tee-instance-blueprint-lib/ # TEE variant library wrapper
@@ -192,6 +193,8 @@ Behavior:
 - query surfaces include runtime metadata (`backend`, image, container status, local UI URL, setup status, last error).
 - canonical UI auth env is unified across variants: `CLAW_UI_BEARER_TOKEN` (`CLAW_UI_AUTH_MODE=bearer`).
 - per-instance token retrieval for owner-scoped sessions: `GET /instances/{id}/access`.
+- canonical env naming + variant compatibility aliases come from shared crate
+  `claw-runtime-access-control` (re-exported by `openclaw-instance-blueprint-lib`).
 - setup bootstrap can be triggered with `POST /instances/{id}/setup/start` (scoped session required).
 - default setup commands:
   - OpenClaw: `openclaw onboard`

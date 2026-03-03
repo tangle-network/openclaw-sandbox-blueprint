@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "claw-runtime-access-control",
     "openclaw-instance-blueprint-lib",
     "openclaw-instance-blueprint-bin",
     "openclaw-tee-instance-blueprint-lib",
