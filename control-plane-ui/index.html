@@ -3,13 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenClaw Hosting Control Plane</title>
+    <title>OpenClaw Instance Control Plane</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="shell">
-      <h1>OpenClaw Hosting Control Plane</h1>
-      <p class="subtitle">Launch a hosted OpenClaw instance from a template pack.</p>
+      <h1>OpenClaw Instance Control Plane</h1>
+      <p class="subtitle">Launch an instance with a secure UI tunnel profile.</p>
+
+      <form id="auth-form" class="card">
+        <label>
+          Operator/session bearer token
+          <input name="bearerToken" id="bearer-token" placeholder="oclw_..." />
+        </label>
+        <button type="submit">Save Token</button>
+      </form>
 
       <form id="launch-form" class="card">
         <label>
@@ -18,15 +26,41 @@
         </label>
 
         <label>
+          Claw variant
+          <select name="clawVariant" required>
+            <option value="openclaw">OpenClaw</option>
+            <option value="nanoclaw">NanoClaw</option>
+            <option value="ironclaw">IronClaw</option>
+          </select>
+        </label>
+
+        <label>
           Template pack
           <select name="templatePackId" id="template-select" required></select>
+        </label>
+
+        <label>
+          Public subdomain (optional)
+          <input
+            name="uiSubdomain"
+            placeholder="team-assistant"
+            pattern="[a-zA-Z0-9-]+"
+          />
+        </label>
+
+        <label>
+          UI auth mode
+          <select name="uiAuthMode" required>
+            <option value="wallet_signature">Wallet signature</option>
+            <option value="access_token">Access token</option>
+          </select>
         </label>
 
         <button type="submit">Launch Instance</button>
       </form>
 
       <section class="card">
-        <h2>Hosted Instances</h2>
+        <h2>Instances</h2>
         <ul id="instance-list"></ul>
       </section>
     </main>

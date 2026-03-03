@@ -1,14 +1,16 @@
 [workspace]
 resolver = "3"
 members = [
-    "openclaw-hosting-blueprint-lib",
-    "openclaw-hosting-blueprint-bin",
+    "openclaw-instance-blueprint-lib",
+    "openclaw-instance-blueprint-bin",
+    "openclaw-tee-instance-blueprint-lib",
+    "openclaw-tee-instance-blueprint-bin",
 ]
 
 [workspace.package]
 authors = ["Drew Stone"]
 edition = "2024"
-description = "OpenClaw Hosting Blueprint for Tangle Network"
+description = "OpenClaw Instance Blueprint for Tangle Network"
 license = "MIT OR Apache-2.0"
 
 # Reduce debug build sizes (~60-70% smaller binaries)

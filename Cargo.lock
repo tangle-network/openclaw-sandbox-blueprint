@@ -1803,6 +1803,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -1821,6 +1822,7 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -6458,20 +6460,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
-name = "openclaw-hosting-blueprint-bin"
+name = "openclaw-instance-blueprint-bin"
 version = "0.1.0"
 dependencies = [
  "blueprint-producers-extra",
  "blueprint-sdk",
- "openclaw-hosting-blueprint-lib",
+ "openclaw-instance-blueprint-lib",
  "tokio",
  "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
-name = "openclaw-hosting-blueprint-lib"
+name = "openclaw-instance-blueprint-lib"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
+ "axum",
  "blueprint-sdk",
  "chrono",
  "once_cell",
@@ -6480,6 +6484,25 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid 1.21.0",
+]
+
+[[package]]
+name = "openclaw-tee-instance-blueprint-bin"
+version = "0.1.0"
+dependencies = [
+ "blueprint-producers-extra",
+ "blueprint-sdk",
+ "openclaw-tee-instance-blueprint-lib",
+ "tokio",
+ "tracing-subscriber 0.3.22",
+]
+
+[[package]]
+name = "openclaw-tee-instance-blueprint-lib"
+version = "0.1.0"
+dependencies = [
+ "blueprint-sdk",
+ "openclaw-instance-blueprint-lib",
 ]
 
 [[package]]
@@ -9045,6 +9068,7 @@ version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",

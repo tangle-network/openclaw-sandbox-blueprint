@@ -1,6 +1,22 @@
+const TOKEN_STORAGE_KEY = "openclawBearerToken";
+
+function currentToken() {
+  return localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
+}
+
+function saveToken(token) {
+  localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
+}
+
 async function getJson(path, options = {}) {
+  const headers = { "Content-Type": "application/json" };
+  const token = currentToken();
+  if (token.length > 0) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options
   });
 
@@ -33,21 +49,31 @@ async function loadTemplates() {
 }
 
 async function renderInstances() {
-  const data = await getJson("/instances");
   const list = document.querySelector("#instance-list");
   list.innerHTML = "";
+  let data;
+  try {
+    data = await getJson("/instances");
+  } catch (error) {
+    const li = document.createElement("li");
+    li.textContent = `Unable to load instances: ${error.message}`;
+    list.append(li);
+    return;
+  }
 
   for (const instance of data.instances) {
     const li = document.createElement("li");
-    li.innerHTML = `<strong>${instance.name}</strong> [${instance.status}] - ${instance.templatePackId}`;
+    const variant = instance.clawVariant ?? "openclaw";
+    const publicUrl = instance.uiAccess?.publicUrl ?? "pending";
+    li.innerHTML = `<strong>${instance.name}</strong> [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl}`;
 
     const actions = document.createElement("span");
     actions.style.marginLeft = "8px";
 
     for (const [label, job] of [
-      ["start", "start-hosted-instance"],
-      ["stop", "stop-hosted-instance"],
-      ["delete", "delete-hosted-instance"]
+      ["start", "start-instance"],
+      ["stop", "stop-instance"],
+      ["delete", "delete-instance"]
     ]) {
       const button = document.createElement("button");
       button.type = "button";
@@ -65,12 +91,32 @@ async function renderInstances() {
   }
 }
 
+document.querySelector("#auth-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  saveToken(`${formData.get("bearerToken") ?? ""}`);
+  await renderInstances();
+});
+
 document.querySelector("#launch-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
-  await postJob("create-hosted-instance", {
+  const config = {
+    claw_variant: formData.get("clawVariant"),
+    ui: {
+      expose_public_url: true,
+      auth_mode: formData.get("uiAuthMode")
+    }
+  };
+  const subdomain = `${formData.get("uiSubdomain") ?? ""}`.trim();
+  if (subdomain.length > 0) {
+    config.ui.subdomain = subdomain;
+  }
+
+  await postJob("create-instance", {
     name: formData.get("name"),
-    templatePackId: formData.get("templatePackId")
+    templatePackId: formData.get("templatePackId"),
+    configJson: JSON.stringify(config)
   });
 
   event.currentTarget.reset();
@@ -78,5 +124,6 @@ document.querySelector("#launch-form").addEventListener("submit", async (event) 
   await renderInstances();
 });
 
+document.querySelector("#bearer-token").value = currentToken();
 await loadTemplates();
 await renderInstances();

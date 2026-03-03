@@ -1,5 +1,5 @@
 [package]
-name = "openclaw-hosting-blueprint-bin"
+name = "openclaw-instance-blueprint-bin"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -7,11 +7,11 @@ description.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "openclaw-hosting-blueprint"
+name = "openclaw-instance-blueprint"
 path = "src/main.rs"
 
 [dependencies]
-openclaw-hosting-blueprint-lib = { path = "../openclaw-hosting-blueprint-lib" }
+openclaw-instance-blueprint-lib = { path = "../openclaw-instance-blueprint-lib" }
 blueprint-sdk = { git = "https://github.com/tangle-network/blueprint.git", branch = "main", default-features = false, features = ["std", "tangle"] }
 blueprint-producers-extra = { git = "https://github.com/tangle-network/blueprint.git", branch = "main", features = ["cron"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }

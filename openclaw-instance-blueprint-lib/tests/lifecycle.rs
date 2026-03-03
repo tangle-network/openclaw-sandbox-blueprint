@@ -5,21 +5,19 @@
 
 use std::sync::Once;
 
-use openclaw_hosting_blueprint_lib::state::{
-    self, InstanceRecord, InstanceState,
+use openclaw_instance_blueprint_lib::state::{
+    self, ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, UiAccess,
 };
 
 static INIT: Once = Once::new();
 
 fn init() {
     INIT.call_once(|| {
-        let dir = std::env::temp_dir().join(format!(
-            "openclaw-lifecycle-test-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("openclaw-lifecycle-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).ok();
         unsafe {
-            std::env::set_var("OPENCLAW_STATE_DIR", dir.to_str().unwrap());
+            std::env::set_var("OPENCLAW_INSTANCE_STATE_DIR", dir.to_str().unwrap());
         }
     });
 }
@@ -31,8 +29,11 @@ fn make_record(id: &str, st: InstanceState) -> InstanceRecord {
         id: id.to_string(),
         name: format!("test-{id}"),
         template_pack_id: "discord".to_string(),
+        claw_variant: ClawVariant::Openclaw,
         config_json: String::new(),
         owner: OWNER.to_string(),
+        ui_access: UiAccess::default(),
+        execution_target: ExecutionTarget::Standard,
         state: st,
         created_at: 1000,
         updated_at: 1000,
