@@ -18,13 +18,13 @@ backend; Firecracker/microVM substrate remains delegated.
 
 ## Crate structure
 
-### `claw-runtime-access-control`
+### `sandbox-runtime::ingress_access_control`
 
-Shared ingress access primitives:
+Shared ingress access primitives reused from `ai-agent-sandbox-blueprint`:
 
-- Canonical env keys for UI auth (`CLAW_UI_AUTH_MODE`, `CLAW_UI_BEARER_TOKEN`)
+- Canonical env keys for UI auth (`SANDBOX_UI_AUTH_MODE`, `SANDBOX_UI_BEARER_TOKEN`)
 - Per-instance bearer token generation
-- Variant compatibility alias mapping (OpenClaw/NanoClaw/IronClaw)
+- Canonical+alias env binding helpers
 
 ### `openclaw-instance-blueprint-lib`
 
@@ -135,8 +135,8 @@ The adapter boundary is implemented:
 - `LocalStateRuntimeAdapter` is the default adapter (file-backed local state).
 - `DockerRuntimeAdapter` executes real container lifecycle via Docker CLI when
   `OPENCLAW_RUNTIME_BACKEND=docker` and image env vars are configured.
-- Canonical UI auth env key across variants is `CLAW_UI_BEARER_TOKEN`
-  (`CLAW_UI_AUTH_MODE=bearer`), with variant-specific aliases set for compatibility.
+- Canonical UI auth env key across variants is `SANDBOX_UI_BEARER_TOKEN`
+  (`SANDBOX_UI_AUTH_MODE=bearer`), with compatibility aliases still injected for existing images.
 - Runtime maps UI ports to loopback host addresses only (`127.0.0.1`), so
   public exposure must happen through an authenticated tunnel/reverse proxy layer.
 - `init_instance_runtime_adapter(...)` allows replacing the default with a

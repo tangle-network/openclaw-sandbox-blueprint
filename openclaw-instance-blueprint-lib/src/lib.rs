@@ -13,6 +13,7 @@
 
 pub mod auth;
 pub mod error;
+pub mod ingress_access;
 pub mod jobs;
 pub mod operator_api;
 pub mod query;
@@ -23,9 +24,12 @@ use blueprint_sdk::Job;
 use blueprint_sdk::Router;
 use blueprint_sdk::alloy::sol;
 use blueprint_sdk::tangle::TangleLayer;
-pub use claw_runtime_access_control::{
-    AUTH_MODE_BEARER, CANONICAL_UI_AUTH_MODE_ENV, CANONICAL_UI_BEARER_TOKEN_ENV,
-    ClawProductVariant, UiBearerCredential, variant_compat_token_env_keys,
+pub use ingress_access::{
+    ClawProductVariant, LEGACY_CLAW_UI_AUTH_MODE_ENV, LEGACY_CLAW_UI_BEARER_TOKEN_ENV,
+    variant_compat_token_env_keys,
+};
+pub use sandbox_runtime::ingress_access_control::{
+    AUTH_MODE_BEARER, INGRESS_UI_AUTH_MODE_ENV, INGRESS_UI_BEARER_TOKEN_ENV, UiBearerCredential,
 };
 
 pub use jobs::lifecycle::{create_instance, delete_instance, start_instance, stop_instance};

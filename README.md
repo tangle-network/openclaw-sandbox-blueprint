@@ -18,7 +18,6 @@ executes the matching handler, and submits results back to the chain.
 
 ```
 Cargo.toml                         # workspace root
-claw-runtime-access-control/       # shared ingress auth primitives (reusable)
 openclaw-instance-blueprint-lib/    # library: sol! types, jobs, state, router
 openclaw-instance-blueprint-bin/    # binary: runner entry point (main.rs)
 openclaw-tee-instance-blueprint-lib/ # TEE variant library wrapper
@@ -191,10 +190,11 @@ Behavior:
 - `stop` runs `docker stop`.
 - `delete` runs `docker rm -f`.
 - query surfaces include runtime metadata (`backend`, image, container status, local UI URL, setup status, last error).
-- canonical UI auth env is unified across variants: `CLAW_UI_BEARER_TOKEN` (`CLAW_UI_AUTH_MODE=bearer`).
+- canonical UI auth env is unified across variants: `SANDBOX_UI_BEARER_TOKEN` (`SANDBOX_UI_AUTH_MODE=bearer`).
 - per-instance token retrieval for owner-scoped sessions: `GET /instances/{id}/access`.
-- canonical env naming + variant compatibility aliases come from shared crate
-  `claw-runtime-access-control` (re-exported by `openclaw-instance-blueprint-lib`).
+- canonical env naming + token generation come from
+  `sandbox-runtime::ingress_access_control` (re-exported by `openclaw-instance-blueprint-lib`).
+- compatibility aliases are still injected for existing images (`CLAW_UI_BEARER_TOKEN`, `OPENCLAW_GATEWAY_TOKEN`, `NANOCLAW_UI_BEARER_TOKEN`, `GATEWAY_AUTH_TOKEN`).
 - setup bootstrap can be triggered with `POST /instances/{id}/setup/start` (scoped session required).
 - default setup commands:
   - OpenClaw: `openclaw onboard`
@@ -209,7 +209,7 @@ valid image references for your environment.
 ## Security posture (current)
 
 - Containers are bound to loopback only (`127.0.0.1` port mapping), not exposed directly on public interfaces.
-- Each Docker instance receives a unique bearer token under canonical env key `CLAW_UI_BEARER_TOKEN`.
+- Each Docker instance receives a unique bearer token under canonical env key `SANDBOX_UI_BEARER_TOKEN`.
 - Operator API setup execution is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
 - UI token retrieval is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
 - Setup env keys are validated and only injected for the setup execution call; they are not persisted in instance state.

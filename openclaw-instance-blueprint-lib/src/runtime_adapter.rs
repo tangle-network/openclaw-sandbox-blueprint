@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 
-use claw_runtime_access_control::{
-    CANONICAL_UI_BEARER_TOKEN_ENV, ClawProductVariant, UiBearerCredential,
+use crate::{
+    ClawProductVariant, INGRESS_UI_BEARER_TOKEN_ENV, LEGACY_CLAW_UI_AUTH_MODE_ENV,
+    UiBearerCredential, variant_compat_token_env_keys,
 };
 use once_cell::sync::OnceCell;
 
@@ -343,7 +344,7 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
         self.maybe_pull(&image)?;
         let container_name = self.container_name(&input.id, &input.claw_variant);
         let ui_container_port = self.resolve_ui_port(&input.claw_variant, &image)?;
-        let ui_credential = UiBearerCredential::generate();
+        let ui_credential = UiBearerCredential::generate_with_prefix("claw_ui_");
         let variant = product_variant(&input.claw_variant);
 
         let mut args = vec![
@@ -361,10 +362,18 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
             "--env".to_string(),
             format!("OPENCLAW_VARIANT={}", input.claw_variant),
         ];
-        for (key, value) in ui_credential.container_env_bindings(&variant) {
+        for (key, value) in ui_credential.container_env_bindings_with_aliases(
+            variant_compat_token_env_keys(&variant).iter().copied(),
+        )
+        {
             args.push("--env".to_string());
             args.push(format!("{key}={value}"));
         }
+        args.push("--env".to_string());
+        args.push(format!(
+            "{LEGACY_CLAW_UI_AUTH_MODE_ENV}={}",
+            ui_credential.auth_scheme
+        ));
         if let Some(port) = ui_container_port {
             args.push("-p".to_string());
             args.push(format!("127.0.0.1::{port}"));
@@ -417,7 +426,7 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
                 ui_host_port: host_port,
                 ui_local_url,
                 ui_auth_scheme: Some(ui_credential.auth_scheme.clone()),
-                ui_auth_env_key: Some(CANONICAL_UI_BEARER_TOKEN_ENV.to_string()),
+                ui_auth_env_key: Some(INGRESS_UI_BEARER_TOKEN_ENV.to_string()),
                 ui_bearer_token: Some(ui_credential.token.clone()),
                 setup_url,
                 setup_status,
@@ -1092,7 +1101,7 @@ mod tests {
                 ui_host_port: None,
                 ui_local_url: None,
                 ui_auth_scheme: Some("bearer".to_string()),
-                ui_auth_env_key: Some(CANONICAL_UI_BEARER_TOKEN_ENV.to_string()),
+                ui_auth_env_key: Some(INGRESS_UI_BEARER_TOKEN_ENV.to_string()),
                 ui_bearer_token: Some("tok".to_string()),
                 setup_url: None,
                 setup_status: Some("pending".to_string()),
