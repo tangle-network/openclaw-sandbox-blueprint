@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 blueprint-sdk = { git = "https://github.com/tangle-network/blueprint.git", branch = "main", default-features = false, features = ["std", "tracing", "macros", "tangle"] }
 alloy-primitives = { version = "1.5", features = ["k256"] }
-sandbox-runtime = { git = "https://github.com/tangle-network/ai-agent-sandbox-blueprint.git", package = "sandbox-runtime", rev = "69b07f6" }
+sandbox-runtime = { git = "https://github.com/tangle-network/ai-agent-sandbox-blueprint.git", package = "sandbox-runtime", rev = "4c63322" }
 axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 once_cell = "1"

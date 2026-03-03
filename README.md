@@ -220,7 +220,7 @@ valid image references for your environment.
 Instance state persists at:
 
 - `$OPENCLAW_INSTANCE_STATE_DIR/instances.json` (preferred)
-- fallback: `$OPENCLAW_STATE_DIR/instances.json` (legacy compatibility)
+- fallback: `$OPENCLAW_STATE_DIR/instances.json` (compatibility path)
 - default: `/tmp/openclaw-instance-blueprint/instances.json`
 
 ## TEE variant

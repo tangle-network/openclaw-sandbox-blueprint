@@ -9,7 +9,7 @@ use std::process::Command;
 use std::sync::Arc;
 
 use crate::{
-    ClawProductVariant, INGRESS_UI_BEARER_TOKEN_ENV, LEGACY_CLAW_UI_AUTH_MODE_ENV,
+    ClawProductVariant, INGRESS_UI_BEARER_TOKEN_ENV, OPENCLAW_COMPAT_UI_AUTH_MODE_ENV,
     UiBearerCredential, variant_compat_token_env_keys,
 };
 use once_cell::sync::OnceCell;
@@ -364,15 +364,14 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
         ];
         for (key, value) in ui_credential.container_env_bindings_with_aliases(
             variant_compat_token_env_keys(&variant).iter().copied(),
-        )
-        {
+        ) {
             args.push("--env".to_string());
             args.push(format!("{key}={value}"));
         }
         args.push("--env".to_string());
         args.push(format!(
-            "{LEGACY_CLAW_UI_AUTH_MODE_ENV}={}",
-            ui_credential.auth_scheme
+            "{OPENCLAW_COMPAT_UI_AUTH_MODE_ENV}={}",
+            ui_credential.auth_scheme()
         ));
         if let Some(port) = ui_container_port {
             args.push("-p".to_string());
@@ -425,9 +424,9 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
                 container_status: Some("created".to_string()),
                 ui_host_port: host_port,
                 ui_local_url,
-                ui_auth_scheme: Some(ui_credential.auth_scheme.clone()),
+                ui_auth_scheme: Some(ui_credential.auth_scheme().to_string()),
                 ui_auth_env_key: Some(INGRESS_UI_BEARER_TOKEN_ENV.to_string()),
-                ui_bearer_token: Some(ui_credential.token.clone()),
+                ui_bearer_token: Some(ui_credential.token().to_string()),
                 setup_url,
                 setup_status,
                 setup_command,

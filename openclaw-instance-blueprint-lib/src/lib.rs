@@ -25,7 +25,7 @@ use blueprint_sdk::Router;
 use blueprint_sdk::alloy::sol;
 use blueprint_sdk::tangle::TangleLayer;
 pub use ingress_access::{
-    ClawProductVariant, LEGACY_CLAW_UI_AUTH_MODE_ENV, LEGACY_CLAW_UI_BEARER_TOKEN_ENV,
+    ClawProductVariant, OPENCLAW_COMPAT_UI_AUTH_MODE_ENV, OPENCLAW_COMPAT_UI_BEARER_TOKEN_ENV,
     variant_compat_token_env_keys,
 };
 pub use sandbox_runtime::ingress_access_control::{
