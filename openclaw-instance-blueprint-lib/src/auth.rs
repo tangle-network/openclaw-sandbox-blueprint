@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use alloy_primitives::{Address, Signature};
 use chrono::Utc;
+use serde::Deserialize;
 
 use crate::state::{InstanceRecord, UiAuthMode};
 
@@ -92,6 +93,18 @@ pub struct SessionResponse {
 pub enum SessionClaims {
     Operator,
     Scoped { instance_id: String, owner: String },
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct InstanceConfig {
+    ui: UiConfig,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct UiConfig {
+    access_token: Option<String>,
 }
 
 impl AuthService {
@@ -228,10 +241,13 @@ impl AuthService {
         if instance.ui_access.auth_mode != UiAuthMode::AccessToken {
             return Err("instance does not use access_token auth mode".to_string());
         }
-        let Some(expected) = &self.config.access_token else {
-            return Err("OPENCLAW_UI_ACCESS_TOKEN is not configured".to_string());
+        let Some(expected) = expected_access_token_for_instance(instance, &self.config) else {
+            return Err(
+                "no access token configured (set ui.access_token in config_json or OPENCLAW_UI_ACCESS_TOKEN)"
+                    .to_string(),
+            );
         };
-        if access_token != expected {
+        if access_token.trim() != expected {
             return Err("invalid access token".to_string());
         }
 
@@ -270,4 +286,82 @@ fn parse_address(raw: &str) -> Result<Address, String> {
 
 fn issue_token() -> String {
     format!("oclw_{}", uuid::Uuid::new_v4().simple())
+}
+
+fn expected_access_token_for_instance(
+    instance: &InstanceRecord,
+    config: &AuthConfig,
+) -> Option<String> {
+    if let Ok(parsed) = serde_json::from_str::<InstanceConfig>(&instance.config_json)
+        && let Some(token) = parsed.ui.access_token
+    {
+        let trimmed = token.trim().to_string();
+        if !trimmed.is_empty() {
+            return Some(trimmed);
+        }
+    }
+
+    config.access_token.as_ref().and_then(|token| {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{
+        ClawVariant, ExecutionTarget, InstanceState, UiAccess, UiAuthMode, UiTunnelStatus,
+    };
+
+    fn test_instance(config_json: &str) -> InstanceRecord {
+        InstanceRecord {
+            id: "inst-1".to_string(),
+            name: "instance".to_string(),
+            template_pack_id: "discord".to_string(),
+            claw_variant: ClawVariant::Openclaw,
+            config_json: config_json.to_string(),
+            owner: "0x0000000000000000000000000000000000000001".to_string(),
+            ui_access: UiAccess {
+                public_url: None,
+                tunnel_status: UiTunnelStatus::Pending,
+                auth_mode: UiAuthMode::AccessToken,
+                owner_only: true,
+            },
+            execution_target: ExecutionTarget::Standard,
+            state: InstanceState::Stopped,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn instance_token_overrides_global_token() {
+        let cfg = AuthConfig {
+            challenge_ttl_secs: 300,
+            session_ttl_secs: 3600,
+            access_token: Some("global-token".to_string()),
+            operator_api_token: None,
+        };
+        let instance = test_instance(r#"{"ui":{"access_token":"instance-token"}}"#);
+        let actual = expected_access_token_for_instance(&instance, &cfg);
+        assert_eq!(actual.as_deref(), Some("instance-token"));
+    }
+
+    #[test]
+    fn falls_back_to_global_token() {
+        let cfg = AuthConfig {
+            challenge_ttl_secs: 300,
+            session_ttl_secs: 3600,
+            access_token: Some("global-token".to_string()),
+            operator_api_token: None,
+        };
+        let instance = test_instance("{}");
+        let actual = expected_access_token_for_instance(&instance, &cfg);
+        assert_eq!(actual.as_deref(), Some("global-token"));
+    }
 }

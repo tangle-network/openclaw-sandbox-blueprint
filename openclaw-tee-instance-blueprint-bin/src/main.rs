@@ -72,15 +72,19 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .run()
         .await;
 
-    if let Err(e) = result {
-        error!("Runner failed: {e:?}");
-    }
+    let runner_outcome: Result<(), blueprint_sdk::Error> = match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            error!("Runner failed: {e:?}");
+            Err(blueprint_sdk::Error::Other(e.to_string()))
+        }
+    };
     let _ = operator_shutdown_tx.send(());
     if let Some(handle) = operator_handle {
         let _ = handle.await;
     }
 
-    Ok(())
+    runner_outcome
 }
 
 fn setup_log() {

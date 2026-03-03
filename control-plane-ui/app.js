@@ -8,6 +8,12 @@ function saveToken(token) {
   localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
 }
 
+function setStatus(message, isError = false) {
+  const status = document.querySelector("#status");
+  status.textContent = message;
+  status.style.color = isError ? "#b42318" : "#146c43";
+}
+
 async function getJson(path, options = {}) {
   const headers = { "Content-Type": "application/json" };
   const token = currentToken();
@@ -22,7 +28,7 @@ async function getJson(path, options = {}) {
 
   const body = await response.json();
   if (!response.ok) {
-    const message = body?.error ?? "request failed";
+    const message = body?.error?.message ?? body?.error ?? "request failed";
     throw new Error(message);
   }
   return body;
@@ -51,6 +57,7 @@ async function loadTemplates() {
 async function renderInstances() {
   const list = document.querySelector("#instance-list");
   list.innerHTML = "";
+
   let data;
   try {
     data = await getJson("/instances");
@@ -63,9 +70,15 @@ async function renderInstances() {
 
   for (const instance of data.instances) {
     const li = document.createElement("li");
+    const title = document.createElement("strong");
+    title.textContent = instance.name;
+    li.append(title);
+
     const variant = instance.clawVariant ?? "openclaw";
     const publicUrl = instance.uiAccess?.publicUrl ?? "pending";
-    li.innerHTML = `<strong>${instance.name}</strong> [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl}`;
+    const details = document.createElement("span");
+    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl}`;
+    li.append(details);
 
     const actions = document.createElement("span");
     actions.style.marginLeft = "8px";
@@ -80,8 +93,25 @@ async function renderInstances() {
       button.textContent = label;
       button.style.marginLeft = "4px";
       button.addEventListener("click", async () => {
-        await postJob(job, { instanceId: instance.id });
-        await renderInstances();
+        if (label === "delete") {
+          const confirmed = window.confirm(
+            `Delete instance ${instance.name}? This action cannot be undone.`
+          );
+          if (!confirmed) {
+            return;
+          }
+        }
+
+        try {
+          button.disabled = true;
+          await postJob(job, { instance_id: instance.id });
+          await renderInstances();
+          setStatus(`Instance action succeeded: ${label}.`);
+        } catch (error) {
+          setStatus(`Action failed (${label}): ${error.message}`, true);
+        } finally {
+          button.disabled = false;
+        }
       });
       actions.append(button);
     }
@@ -95,7 +125,70 @@ document.querySelector("#auth-form").addEventListener("submit", async (event) =>
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   saveToken(`${formData.get("bearerToken") ?? ""}`);
-  await renderInstances();
+  try {
+    await renderInstances();
+    setStatus("Bearer token saved.");
+  } catch (error) {
+    setStatus(`Failed to refresh instances: ${error.message}`, true);
+  }
+});
+
+document.querySelector("#token-session-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  try {
+    const session = await getJson("/auth/session/token", {
+      method: "POST",
+      body: JSON.stringify({
+        instanceId: `${formData.get("instanceId") ?? ""}`,
+        accessToken: `${formData.get("accessToken") ?? ""}`
+      })
+    });
+    saveToken(session.token ?? "");
+    document.querySelector("#bearer-token").value = currentToken();
+    setStatus("Session token created from access token.");
+    await renderInstances();
+  } catch (error) {
+    setStatus(`Access token login failed: ${error.message}`, true);
+  }
+});
+
+document.querySelector("#wallet-challenge-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  try {
+    const challenge = await getJson("/auth/challenge", {
+      method: "POST",
+      body: JSON.stringify({
+        instanceId: `${formData.get("instanceId") ?? ""}`,
+        walletAddress: `${formData.get("walletAddress") ?? ""}`
+      })
+    });
+    document.querySelector("#challenge-id").value = challenge.challengeId ?? "";
+    setStatus("Wallet challenge created. Sign the returned challenge message and submit signature.");
+  } catch (error) {
+    setStatus(`Challenge creation failed: ${error.message}`, true);
+  }
+});
+
+document.querySelector("#wallet-verify-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  try {
+    const session = await getJson("/auth/session/wallet", {
+      method: "POST",
+      body: JSON.stringify({
+        challengeId: `${formData.get("challengeId") ?? ""}`,
+        signature: `${formData.get("signature") ?? ""}`
+      })
+    });
+    saveToken(session.token ?? "");
+    document.querySelector("#bearer-token").value = currentToken();
+    setStatus("Wallet session verified and saved.");
+    await renderInstances();
+  } catch (error) {
+    setStatus(`Wallet verification failed: ${error.message}`, true);
+  }
 });
 
 document.querySelector("#launch-form").addEventListener("submit", async (event) => {
@@ -113,17 +206,25 @@ document.querySelector("#launch-form").addEventListener("submit", async (event) 
     config.ui.subdomain = subdomain;
   }
 
-  await postJob("create-instance", {
-    name: formData.get("name"),
-    templatePackId: formData.get("templatePackId"),
-    configJson: JSON.stringify(config)
-  });
-
-  event.currentTarget.reset();
-  await loadTemplates();
-  await renderInstances();
+  try {
+    await postJob("create-instance", {
+      name: formData.get("name"),
+      template_pack_id: formData.get("templatePackId"),
+      config_json: JSON.stringify(config)
+    });
+    event.currentTarget.reset();
+    await loadTemplates();
+    await renderInstances();
+    setStatus("Instance launched.");
+  } catch (error) {
+    setStatus(`Launch failed: ${error.message}`, true);
+  }
 });
 
 document.querySelector("#bearer-token").value = currentToken();
-await loadTemplates();
-await renderInstances();
+try {
+  await loadTemplates();
+  await renderInstances();
+} catch (error) {
+  setStatus(`Initial load failed: ${error.message}`, true);
+}

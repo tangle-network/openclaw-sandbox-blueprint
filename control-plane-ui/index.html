@@ -10,13 +10,64 @@
     <main class="shell">
       <h1>OpenClaw Instance Control Plane</h1>
       <p class="subtitle">Launch an instance with a secure UI tunnel profile.</p>
+      <p id="status" aria-live="polite"></p>
 
       <form id="auth-form" class="card">
         <label>
           Operator/session bearer token
-          <input name="bearerToken" id="bearer-token" placeholder="oclw_..." />
+          <input
+            name="bearerToken"
+            id="bearer-token"
+            type="password"
+            autocomplete="current-password"
+            placeholder="oclw_..."
+          />
         </label>
         <button type="submit">Save Token</button>
+      </form>
+
+      <form id="token-session-form" class="card">
+        <h2>Access Token Login</h2>
+        <label>
+          Instance ID
+          <input name="instanceId" placeholder="instance-id" required />
+        </label>
+        <label>
+          Instance access token
+          <input
+            name="accessToken"
+            type="password"
+            autocomplete="current-password"
+            placeholder="token"
+            required
+          />
+        </label>
+        <button type="submit">Create Session Token</button>
+      </form>
+
+      <form id="wallet-challenge-form" class="card">
+        <h2>Wallet Login</h2>
+        <label>
+          Instance ID
+          <input name="instanceId" placeholder="instance-id" required />
+        </label>
+        <label>
+          Owner wallet address
+          <input name="walletAddress" placeholder="0x..." required />
+        </label>
+        <button type="submit">Get Challenge</button>
+      </form>
+
+      <form id="wallet-verify-form" class="card">
+        <label>
+          Challenge ID
+          <input name="challengeId" id="challenge-id" placeholder="challenge-id" required />
+        </label>
+        <label>
+          Signature
+          <input name="signature" placeholder="0x..." required />
+        </label>
+        <button type="submit">Verify Wallet Session</button>
       </form>
 
       <form id="launch-form" class="card">

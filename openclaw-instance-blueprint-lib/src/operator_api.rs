@@ -25,6 +25,7 @@ struct ApiState {
 #[derive(Debug)]
 pub enum ApiError {
     Unauthorized(String),
+    Forbidden(String),
     BadRequest(String),
     NotFound(String),
     Internal(String),
@@ -32,13 +33,25 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            Self::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-            Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            Self::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let (status, code, message) = match self {
+            Self::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "unauthorized", msg),
+            Self::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg),
+            Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, "bad_request", msg),
+            Self::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg),
+            Self::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", msg),
         };
-        (status, Json(serde_json::json!({ "error": message }))).into_response()
+        (
+            status,
+            Json(serde_json::json!({
+                "error": {
+                    "code": code,
+                    "message": message,
+                },
+                "requestId": request_id,
+            })),
+        )
+            .into_response()
     }
 }
 
@@ -167,7 +180,7 @@ async fn instance_by_id(
         SessionClaims::Operator => Ok(Json(instance)),
         SessionClaims::Scoped { instance_id, owner } => {
             if instance.id != instance_id || !instance.owner.eq_ignore_ascii_case(&owner) {
-                return Err(ApiError::Unauthorized(
+                return Err(ApiError::Forbidden(
                     "session is not authorized for this instance".to_string(),
                 ));
             }
@@ -269,14 +282,14 @@ fn authorize(auth: &AuthService, headers: &HeaderMap) -> Result<SessionClaims, A
 pub fn operator_api_addr_from_env() -> Result<Option<SocketAddr>, String> {
     let enabled = std::env::var("OPENCLAW_OPERATOR_HTTP_ENABLED")
         .ok()
-        .map(|v| !(v == "0" || v.eq_ignore_ascii_case("false")))
-        .unwrap_or(true);
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
     if !enabled {
         return Ok(None);
     }
 
-    let addr =
-        std::env::var("OPENCLAW_OPERATOR_HTTP_ADDR").unwrap_or_else(|_| "0.0.0.0:8787".to_string());
+    let addr = std::env::var("OPENCLAW_OPERATOR_HTTP_ADDR")
+        .unwrap_or_else(|_| "127.0.0.1:8787".to_string());
     addr.parse::<SocketAddr>()
         .map(Some)
         .map_err(|e| format!("invalid OPENCLAW_OPERATOR_HTTP_ADDR `{addr}`: {e}"))

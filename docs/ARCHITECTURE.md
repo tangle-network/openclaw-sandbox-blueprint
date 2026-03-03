@@ -89,6 +89,11 @@ Auth/session endpoints:
 - `POST /auth/session/wallet` — verify wallet signature and issue session
 - `POST /auth/session/token` — access-token login and session issuance
 
+Operator API startup defaults:
+
+- disabled by default (`OPENCLAW_OPERATOR_HTTP_ENABLED=true` to enable)
+- default bind when enabled: `127.0.0.1:8787`
+
 ## State management
 
 Instance records are stored in a JSON file at:

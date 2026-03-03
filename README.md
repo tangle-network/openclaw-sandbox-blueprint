@@ -66,6 +66,11 @@ Session endpoints:
 - `POST /auth/session/wallet` (challenge verify -> bearer token)
 - `POST /auth/session/token` (access-token auth -> bearer token)
 
+Operator API runtime defaults:
+
+- disabled unless `OPENCLAW_OPERATOR_HTTP_ENABLED=true` (or `1`)
+- bind address defaults to `127.0.0.1:8787` via `OPENCLAW_OPERATOR_HTTP_ADDR`
+
 ### Template packs
 
 Pre-configured SOUL/USER/TOOLS presets in `config/templates/`:

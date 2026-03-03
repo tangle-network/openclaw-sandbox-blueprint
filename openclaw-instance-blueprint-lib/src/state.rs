@@ -4,6 +4,7 @@
 //! state across restarts.
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -187,7 +188,15 @@ impl InstanceStore {
             std::fs::create_dir_all(parent)?;
         }
         let data = serde_json::to_string_pretty(map)?;
-        std::fs::write(path, data)?;
+        let tmp_path = path.with_extension(format!("json.tmp-{}", uuid::Uuid::new_v4().simple()));
+        let mut file = std::fs::File::create(&tmp_path)?;
+        file.write_all(data.as_bytes())?;
+        file.sync_all()?;
+        std::fs::rename(&tmp_path, path)?;
+        if let Some(parent) = path.parent() {
+            let dir = std::fs::File::open(parent)?;
+            dir.sync_all()?;
+        }
         Ok(())
     }
 
@@ -196,8 +205,10 @@ impl InstanceStore {
             .inner
             .lock()
             .map_err(|e| InstanceError::Store(e.to_string()))?;
-        map.insert(record.id.clone(), record);
-        Self::persist(&self.path, &map)?;
+        let mut next = map.clone();
+        next.insert(record.id.clone(), record);
+        Self::persist(&self.path, &next)?;
+        *map = next;
         Ok(())
     }
 
