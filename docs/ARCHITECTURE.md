@@ -13,6 +13,8 @@ This repository is the product-layer blueprint. It is **not** the
 infrastructure substrate. Runtime isolation, VM orchestration, and low-level
 network/security enforcement are delegated to the sandbox runtime (see
 `ai-agent-sandbox-blueprint` for the runtime reference).
+Within product-layer scope, this repo can execute lifecycle through a Docker
+backend; Firecracker/microVM substrate remains delegated.
 
 ## Crate structure
 
@@ -27,7 +29,7 @@ Library crate containing all business logic:
   and `TangleArg<T>` extractors and returns `TangleResult<T>`. Handlers call
   the runtime adapter boundary instead of touching storage directly.
 - **`runtime_adapter.rs`** — Runtime adapter contract (`InstanceRuntimeAdapter`)
-  and default local implementation (`LocalStateRuntimeAdapter`).
+  and implementations (`LocalStateRuntimeAdapter`, `DockerRuntimeAdapter`).
 - **`query.rs`** — reusable read-only query helpers (instance/template views).
 - **`auth.rs`** — challenge/session auth service for operator API access control.
 - **`operator_api.rs`** — axum router and handlers for `/health`,
@@ -121,6 +123,8 @@ The adapter boundary is implemented:
 
 - `InstanceRuntimeAdapter` is the lifecycle contract consumed by product jobs.
 - `LocalStateRuntimeAdapter` is the default adapter (file-backed local state).
+- `DockerRuntimeAdapter` executes real container lifecycle via Docker CLI when
+  `OPENCLAW_RUNTIME_BACKEND=docker` and image env vars are configured.
 - `init_instance_runtime_adapter(...)` allows replacing the default with a
   sandbox-runtime-backed adapter.
 

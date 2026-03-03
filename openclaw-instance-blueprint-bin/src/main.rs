@@ -10,12 +10,13 @@ use blueprint_sdk::runner::tangle::config::TangleConfig;
 use blueprint_sdk::tangle::{TangleConsumer, TangleProducer};
 use blueprint_sdk::{error, info, warn};
 use openclaw_instance_blueprint_lib::operator_api::{operator_api_addr_from_env, run_operator_api};
-use openclaw_instance_blueprint_lib::router;
+use openclaw_instance_blueprint_lib::{init_runtime_adapter_from_env, router};
 
 #[tokio::main]
 #[allow(clippy::result_large_err)]
 async fn main() -> Result<(), blueprint_sdk::Error> {
     setup_log();
+    init_runtime_adapter_from_env().map_err(|e| blueprint_sdk::Error::Other(e.to_string()))?;
 
     let operator_shutdown = tokio::sync::watch::channel(());
     let operator_shutdown_tx = operator_shutdown.0;

@@ -27,7 +27,7 @@ use blueprint_sdk::tangle::TangleLayer;
 pub use jobs::lifecycle::{create_instance, delete_instance, start_instance, stop_instance};
 pub use runtime_adapter::{
     InstanceRuntimeAdapter, LocalStateRuntimeAdapter, RuntimeCreateInput,
-    init_instance_runtime_adapter, instance_runtime_adapter,
+    init_instance_runtime_adapter, init_runtime_adapter_from_env, instance_runtime_adapter,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
