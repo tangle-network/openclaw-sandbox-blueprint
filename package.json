@@ -1,9 +1,0 @@
-{
-  "name": "openclaw-sandbox-blueprint",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node openclaw-hosting-blueprint-lib/bin/dev-server.js",
-    "smoke": "node openclaw-hosting-blueprint-lib/bin/smoke-test.js"
-  }
-}

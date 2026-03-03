@@ -16,17 +16,27 @@
 - Exclude local task notes (for example `CODEX_*`) from commits.
 - Do not include co-author trailers unless explicitly requested.
 
+## Building and testing
+
+```bash
+cargo check --all-features
+cargo test --all
+cargo clippy --all-features -- -D warnings
+```
+
 ## PR standards
 
 Each PR should include:
 
 - Problem and intent
 - Scope and non-goals
-- Validation evidence (`npm run smoke`, `/health` checks, unit/integration tests)
+- Validation evidence (`cargo test`, `cargo check`, `cargo clippy`)
 - Risks and follow-up items
 
 ## Architecture guardrails
 
-- Lifecycle mutations are jobs only (`create/start/stop/delete`).
-- Read-only operations stay query-only (`/instances`, `/instances/:id`, `/templates`).
+- This is a **blueprint-sdk blueprint** (Rust). The JS scaffold has been replaced.
+- Lifecycle mutations are on-chain jobs only (`create`, `start`, `stop`, `delete`).
+- Read-only operations stay in query surfaces (operator HTTP API), not jobs.
 - This repository remains a product layer over sandbox-runtime contracts.
+- Job IDs must be sequential and match the on-chain contract.
