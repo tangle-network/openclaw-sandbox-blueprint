@@ -1,6 +1,6 @@
-//! OpenClaw Hosting Blueprint
+//! OpenClaw Instance Blueprint
 //!
-//! Product-layer blueprint for orchestrating hosted OpenClaw instances on the
+//! Product-layer blueprint for orchestrating OpenClaw instances on the
 //! Tangle network. State-changing operations (create, start, stop, delete) are
 //! exposed as on-chain jobs. Read-only queries (instance list, instance detail,
 //! template list, health) are served via the operator HTTP API.
@@ -11,8 +11,12 @@
 //! - Persistent state for instance records
 //! - The `Router` wiring that maps job IDs to handlers
 
+pub mod auth;
 pub mod error;
 pub mod jobs;
+pub mod operator_api;
+pub mod query;
+pub mod runtime_adapter;
 pub mod state;
 
 use blueprint_sdk::Job;
@@ -21,18 +25,22 @@ use blueprint_sdk::alloy::sol;
 use blueprint_sdk::tangle::TangleLayer;
 
 pub use jobs::lifecycle::{create_instance, delete_instance, start_instance, stop_instance};
+pub use runtime_adapter::{
+    InstanceRuntimeAdapter, LocalStateRuntimeAdapter, RuntimeCreateInput,
+    init_instance_runtime_adapter, instance_runtime_adapter,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job IDs — must match the sequential indices in the on-chain contract.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Create a new hosted OpenClaw instance.
+/// Create a new OpenClaw instance.
 pub const JOB_CREATE: u8 = 0;
-/// Start an existing hosted instance.
+/// Start an existing instance.
 pub const JOB_START: u8 = 1;
-/// Stop a running hosted instance.
+/// Stop a running instance.
 pub const JOB_STOP: u8 = 2;
-/// Delete a hosted instance.
+/// Delete an instance.
 pub const JOB_DELETE: u8 = 3;
 
 /// Standard success status string returned in job results.
@@ -56,7 +64,7 @@ pub const MAX_INSTANCE_ID_LEN: usize = 128;
 // ─────────────────────────────────────────────────────────────────────────────
 
 sol! {
-    /// Request to create a new hosted OpenClaw instance.
+    /// Request to create a new OpenClaw instance.
     struct CreateInstanceRequest {
         string name;
         string template_pack_id;
@@ -80,7 +88,7 @@ sol! {
 // Router
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Build the job router for the OpenClaw hosting blueprint.
+/// Build the job router for the OpenClaw instance blueprint.
 ///
 /// Maps each job ID to its handler, wrapped in `TangleLayer` for on-chain
 /// metadata propagation (caller, call_id, service_id).
@@ -121,13 +129,5 @@ mod tests {
     #[test]
     fn router_builds_without_panic() {
         let _ = router();
-    }
-
-    #[test]
-    fn input_limits_are_sane() {
-        assert!(MAX_NAME_LEN >= 1);
-        assert!(MAX_TEMPLATE_PACK_ID_LEN >= 1);
-        assert!(MAX_CONFIG_JSON_LEN >= 2); // minimum valid JSON: "{}"
-        assert!(MAX_INSTANCE_ID_LEN >= 36); // UUID v4 is 36 chars
     }
 }

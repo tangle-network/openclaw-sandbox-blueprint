@@ -1,4 +1,4 @@
-//! Blueprint runner for openclaw-hosting-blueprint.
+//! Blueprint runner for openclaw-instance-blueprint.
 //!
 //! Wires the job router, Tangle producer/consumer, and optional cron producers
 //! into a `BlueprintRunner` and starts the event loop.
@@ -8,13 +8,35 @@ use blueprint_sdk::runner::BlueprintRunner;
 use blueprint_sdk::runner::config::BlueprintEnvironment;
 use blueprint_sdk::runner::tangle::config::TangleConfig;
 use blueprint_sdk::tangle::{TangleConsumer, TangleProducer};
-use blueprint_sdk::{error, info};
-use openclaw_hosting_blueprint_lib::router;
+use blueprint_sdk::{error, info, warn};
+use openclaw_instance_blueprint_lib::operator_api::{operator_api_addr_from_env, run_operator_api};
+use openclaw_instance_blueprint_lib::router;
 
 #[tokio::main]
 #[allow(clippy::result_large_err)]
 async fn main() -> Result<(), blueprint_sdk::Error> {
     setup_log();
+
+    let operator_shutdown = tokio::sync::watch::channel(());
+    let operator_shutdown_tx = operator_shutdown.0;
+    let operator_handle: Option<tokio::task::JoinHandle<()>> = match operator_api_addr_from_env()
+        .map_err(blueprint_sdk::Error::Other)?
+    {
+        Some(addr) => {
+            let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+                blueprint_sdk::Error::Other(format!("failed to bind operator api on {addr}: {e}"))
+            })?;
+            info!("Starting operator API on {addr}");
+            let shutdown_rx = operator_shutdown_tx.subscribe();
+            Some(tokio::spawn(async move {
+                run_operator_api(listener, shutdown_rx).await;
+            }))
+        }
+        None => {
+            warn!("Operator API disabled (OPENCLAW_OPERATOR_HTTP_ENABLED=false)");
+            None
+        }
+    };
 
     let env = BlueprintEnvironment::load()?;
 
@@ -30,7 +52,7 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .service_id
         .ok_or_else(|| blueprint_sdk::Error::Other("SERVICE_ID missing".into()))?;
 
-    info!("Starting openclaw-hosting-blueprint for service {service_id}");
+    info!("Starting openclaw-instance-blueprint for service {service_id}");
 
     let tangle_producer = TangleProducer::new(tangle_client.clone(), service_id);
     let tangle_consumer = TangleConsumer::new(tangle_client);
@@ -42,16 +64,24 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .producer(tangle_producer)
         .consumer(tangle_consumer)
         .with_shutdown_handler(async {
-            info!("Shutting down openclaw-hosting-blueprint");
+            info!("Shutting down openclaw-instance-blueprint");
         })
         .run()
         .await;
 
-    if let Err(e) = result {
-        error!("Runner failed: {e:?}");
+    let runner_outcome: Result<(), blueprint_sdk::Error> = match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            error!("Runner failed: {e:?}");
+            Err(blueprint_sdk::Error::Other(e.to_string()))
+        }
+    };
+    let _ = operator_shutdown_tx.send(());
+    if let Some(handle) = operator_handle {
+        let _ = handle.await;
     }
 
-    Ok(())
+    runner_outcome
 }
 
 fn setup_log() {

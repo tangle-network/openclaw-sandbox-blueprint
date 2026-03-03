@@ -1,18 +1,39 @@
-//! Persistent state management for hosted OpenClaw instances.
+//! Persistent state management for OpenClaw instances.
 //!
 //! Uses a file-backed JSON store (`Mutex<BTreeMap>` + `std::fs`) for durable
 //! state across restarts.
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{HostingError, Result};
+use crate::error::{InstanceError, Result};
 
-/// Lifecycle states for a hosted OpenClaw instance.
+/// Supported product variants for claw instances.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClawVariant {
+    #[default]
+    Openclaw,
+    Nanoclaw,
+    Ironclaw,
+}
+
+impl std::fmt::Display for ClawVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Openclaw => write!(f, "openclaw"),
+            Self::Nanoclaw => write!(f, "nanoclaw"),
+            Self::Ironclaw => write!(f, "ironclaw"),
+        }
+    }
+}
+
+/// Lifecycle states for an OpenClaw instance.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InstanceState {
@@ -34,16 +55,106 @@ impl std::fmt::Display for InstanceState {
     }
 }
 
-/// A hosted OpenClaw instance record.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Tunnel publication status for the per-instance UI endpoint.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiTunnelStatus {
+    #[default]
+    Pending,
+    Active,
+    Disabled,
+}
+
+impl std::fmt::Display for UiTunnelStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending => write!(f, "pending"),
+            Self::Active => write!(f, "active"),
+            Self::Disabled => write!(f, "disabled"),
+        }
+    }
+}
+
+/// Authentication mode for public UI ingress.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiAuthMode {
+    #[default]
+    WalletSignature,
+    AccessToken,
+}
+
+impl std::fmt::Display for UiAuthMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WalletSignature => write!(f, "wallet_signature"),
+            Self::AccessToken => write!(f, "access_token"),
+        }
+    }
+}
+
+/// Runtime execution target for the instance lifecycle.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionTarget {
+    #[default]
+    Standard,
+    Tee,
+}
+
+impl std::fmt::Display for ExecutionTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Standard => write!(f, "standard"),
+            Self::Tee => write!(f, "tee"),
+        }
+    }
+}
+
+fn default_owner_only() -> bool {
+    true
+}
+
+/// UI ingress projection for an instance.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiAccess {
+    #[serde(default)]
+    pub public_url: Option<String>,
+    #[serde(default)]
+    pub tunnel_status: UiTunnelStatus,
+    #[serde(default)]
+    pub auth_mode: UiAuthMode,
+    #[serde(default = "default_owner_only")]
+    pub owner_only: bool,
+}
+
+impl Default for UiAccess {
+    fn default() -> Self {
+        Self {
+            public_url: None,
+            tunnel_status: UiTunnelStatus::Pending,
+            auth_mode: UiAuthMode::WalletSignature,
+            owner_only: true,
+        }
+    }
+}
+
+/// A OpenClaw instance record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstanceRecord {
     pub id: String,
     pub name: String,
     pub template_pack_id: String,
+    #[serde(default)]
+    pub claw_variant: ClawVariant,
     /// Caller-supplied configuration (opaque JSON string).
     #[serde(default)]
     pub config_json: String,
     pub owner: String,
+    #[serde(default)]
+    pub ui_access: UiAccess,
+    #[serde(default)]
+    pub execution_target: ExecutionTarget,
     pub state: InstanceState,
     pub created_at: i64,
     pub updated_at: i64,
@@ -77,24 +188,43 @@ impl InstanceStore {
             std::fs::create_dir_all(parent)?;
         }
         let data = serde_json::to_string_pretty(map)?;
-        std::fs::write(path, data)?;
+        let tmp_path = path.with_extension(format!("json.tmp-{}", uuid::Uuid::new_v4().simple()));
+        let mut file = std::fs::File::create(&tmp_path)?;
+        file.write_all(data.as_bytes())?;
+        file.sync_all()?;
+        std::fs::rename(&tmp_path, path)?;
+        if let Some(parent) = path.parent() {
+            let dir = std::fs::File::open(parent)?;
+            dir.sync_all()?;
+        }
         Ok(())
     }
 
     fn insert(&self, record: InstanceRecord) -> Result<()> {
-        let mut map = self.inner.lock().map_err(|e| HostingError::Store(e.to_string()))?;
-        map.insert(record.id.clone(), record);
-        Self::persist(&self.path, &map)?;
+        let mut map = self
+            .inner
+            .lock()
+            .map_err(|e| InstanceError::Store(e.to_string()))?;
+        let mut next = map.clone();
+        next.insert(record.id.clone(), record);
+        Self::persist(&self.path, &next)?;
+        *map = next;
         Ok(())
     }
 
     fn get(&self, id: &str) -> Result<Option<InstanceRecord>> {
-        let map = self.inner.lock().map_err(|e| HostingError::Store(e.to_string()))?;
+        let map = self
+            .inner
+            .lock()
+            .map_err(|e| InstanceError::Store(e.to_string()))?;
         Ok(map.get(id).cloned())
     }
 
     fn list(&self) -> Result<Vec<InstanceRecord>> {
-        let map = self.inner.lock().map_err(|e| HostingError::Store(e.to_string()))?;
+        let map = self
+            .inner
+            .lock()
+            .map_err(|e| InstanceError::Store(e.to_string()))?;
         let mut records: Vec<_> = map.values().cloned().collect();
         records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         Ok(records)
@@ -103,9 +233,10 @@ impl InstanceStore {
 
 /// Directory where blueprint state files are stored.
 fn state_dir() -> PathBuf {
-    std::env::var("OPENCLAW_STATE_DIR")
+    std::env::var("OPENCLAW_INSTANCE_STATE_DIR")
+        .or_else(|_| std::env::var("OPENCLAW_STATE_DIR"))
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp/openclaw-hosting-blueprint"))
+        .unwrap_or_else(|_| PathBuf::from("/tmp/openclaw-instance-blueprint"))
 }
 
 static INSTANCES: OnceCell<InstanceStore> = OnceCell::new();
@@ -116,7 +247,7 @@ fn store() -> Result<&'static InstanceStore> {
             let path = state_dir().join("instances.json");
             InstanceStore::open(path)
         })
-        .map_err(|err: HostingError| err)
+        .map_err(|err: InstanceError| err)
 }
 
 /// Insert or update an instance record.
@@ -165,8 +296,11 @@ mod tests {
             id: id.to_string(),
             name: format!("test-{id}"),
             template_pack_id: "discord".to_string(),
+            claw_variant: ClawVariant::Openclaw,
             config_json: String::new(),
             owner: "0x0000000000000000000000000000000000000001".to_string(),
+            ui_access: UiAccess::default(),
+            execution_target: ExecutionTarget::Standard,
             state,
             created_at: 1000,
             updated_at: 1000,
@@ -175,10 +309,7 @@ mod tests {
 
     #[test]
     fn instance_store_insert_get_list() {
-        let dir = std::env::temp_dir().join(format!(
-            "openclaw-test-store-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("openclaw-test-store-{}", std::process::id()));
         std::fs::create_dir_all(&dir).ok();
         let path = dir.join("test-instances.json");
 
@@ -244,5 +375,11 @@ mod tests {
         }"#;
         let record: InstanceRecord = serde_json::from_str(json).expect("deserialize");
         assert_eq!(record.config_json, "");
+        assert_eq!(record.claw_variant, ClawVariant::Openclaw);
+        assert_eq!(record.ui_access.tunnel_status, UiTunnelStatus::Pending);
+        assert_eq!(record.ui_access.auth_mode, UiAuthMode::WalletSignature);
+        assert!(record.ui_access.owner_only);
+        assert!(record.ui_access.public_url.is_none());
+        assert_eq!(record.execution_target, ExecutionTarget::Standard);
     }
 }
