@@ -19,9 +19,8 @@ fn address_hex(raw: &[u8; 20]) -> String {
 
 /// Create a new hosted OpenClaw instance.
 ///
-/// Validates the request, provisions the instance record in `Provisioning`
-/// state, then transitions to `Stopped` (simulating successful runtime
-/// allocation). Returns the instance ID and metadata.
+/// Validates the request, creates the instance record in `Stopped` state,
+/// persists it, and returns the instance ID with metadata.
 pub async fn create_instance(
     Caller(caller): Caller,
     CallId(call_id): CallId,
@@ -30,12 +29,17 @@ pub async fn create_instance(
     let caller_hex = address_hex(&caller);
     let name = request.name.trim().to_string();
     let template_pack_id = request.template_pack_id.trim().to_string();
+    let config_json = request.config_json.trim().to_string();
 
     if name.is_empty() {
         return Err("instance name must not be empty".to_string());
     }
     if template_pack_id.is_empty() {
         return Err("template_pack_id must not be empty".to_string());
+    }
+    if !config_json.is_empty() {
+        serde_json::from_str::<serde_json::Value>(&config_json)
+            .map_err(|e| format!("config_json is not valid JSON: {e}"))?;
     }
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -53,6 +57,7 @@ pub async fn create_instance(
         id: id.clone(),
         name: name.clone(),
         template_pack_id: template_pack_id.clone(),
+        config_json,
         owner: caller_hex,
         state: InstanceState::Stopped,
         created_at: now,
@@ -102,9 +107,10 @@ pub async fn start_instance(
 
     record.state = InstanceState::Running;
     record.updated_at = chrono::Utc::now().timestamp();
-    state::save_instance(record.clone()).map_err(|e| e.to_string())?;
+    let response = instance_response(&record);
+    state::save_instance(record).map_err(|e| e.to_string())?;
 
-    Ok(TangleResult(instance_response(&record)))
+    Ok(TangleResult(response))
 }
 
 /// Stop a hosted OpenClaw instance.
@@ -133,9 +139,10 @@ pub async fn stop_instance(
 
     record.state = InstanceState::Stopped;
     record.updated_at = chrono::Utc::now().timestamp();
-    state::save_instance(record.clone()).map_err(|e| e.to_string())?;
+    let response = instance_response(&record);
+    state::save_instance(record).map_err(|e| e.to_string())?;
 
-    Ok(TangleResult(instance_response(&record)))
+    Ok(TangleResult(response))
 }
 
 /// Delete a hosted OpenClaw instance.
@@ -165,9 +172,10 @@ pub async fn delete_instance(
 
     record.state = InstanceState::Deleted;
     record.updated_at = chrono::Utc::now().timestamp();
-    state::save_instance(record.clone()).map_err(|e| e.to_string())?;
+    let response = instance_response(&record);
+    state::save_instance(record).map_err(|e| e.to_string())?;
 
-    Ok(TangleResult(instance_response(&record)))
+    Ok(TangleResult(response))
 }
 
 /// Look up an instance and verify ownership.

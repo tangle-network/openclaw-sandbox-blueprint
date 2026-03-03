@@ -2694,7 +2694,6 @@ dependencies = [
  "blueprint-router",
  "blueprint-runner",
  "blueprint-std",
- "blueprint-stores",
  "blueprint-tangle-extra",
  "blueprint-testing-utils",
  "document-features",
@@ -2710,25 +2709,6 @@ dependencies = [
  "colored",
  "num-traits",
  "rand 0.8.5",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "blueprint-store-local-database"
-version = "0.1.0-alpha.7"
-dependencies = [
- "blueprint-std",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "blueprint-stores"
-version = "0.1.0-alpha.8"
-dependencies = [
- "blueprint-store-local-database",
- "document-features",
  "thiserror 2.0.18",
 ]
 
