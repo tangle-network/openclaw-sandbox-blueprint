@@ -59,6 +59,7 @@ operator HTTP API:
 - `GET /templates`
 - `GET /instances` (requires bearer auth)
 - `GET /instances/{id}` (requires bearer auth)
+- `GET /instances/{id}/access` (requires scoped bearer auth; returns per-instance UI bearer token)
 - `POST /instances/{id}/setup/start` (requires scoped bearer auth)
 
 Session endpoints:
@@ -189,6 +190,8 @@ Behavior:
 - `stop` runs `docker stop`.
 - `delete` runs `docker rm -f`.
 - query surfaces include runtime metadata (`backend`, image, container status, local UI URL, setup status, last error).
+- canonical UI auth env is unified across variants: `CLAW_UI_BEARER_TOKEN` (`CLAW_UI_AUTH_MODE=bearer`).
+- per-instance token retrieval for owner-scoped sessions: `GET /instances/{id}/access`.
 - setup bootstrap can be triggered with `POST /instances/{id}/setup/start` (scoped session required).
 - default setup commands:
   - OpenClaw: `openclaw onboard`
@@ -203,7 +206,9 @@ valid image references for your environment.
 ## Security posture (current)
 
 - Containers are bound to loopback only (`127.0.0.1` port mapping), not exposed directly on public interfaces.
+- Each Docker instance receives a unique bearer token under canonical env key `CLAW_UI_BEARER_TOKEN`.
 - Operator API setup execution is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
+- UI token retrieval is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
 - Setup env keys are validated and only injected for the setup execution call; they are not persisted in instance state.
 - UI ingress should still be fronted by authenticated tunnel/reverse proxy before internet exposure.
 

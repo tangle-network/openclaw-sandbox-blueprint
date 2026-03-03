@@ -13,6 +13,9 @@ use once_cell::sync::OnceCell;
 use crate::error::{InstanceError, Result};
 use crate::state::{self, ClawVariant, ExecutionTarget, InstanceRecord, RuntimeBinding, UiAccess};
 
+const CLAW_UI_BEARER_TOKEN_ENV: &str = "CLAW_UI_BEARER_TOKEN";
+const CLAW_UI_AUTH_MODE_ENV: &str = "CLAW_UI_AUTH_MODE";
+
 /// Input contract for runtime-level create.
 #[derive(Clone, Debug)]
 pub struct RuntimeCreateInput {
@@ -325,6 +328,27 @@ impl DockerRuntimeAdapter {
 
         Some(parts.join(" | "))
     }
+
+    fn ui_auth_env_bindings(&self, variant: &ClawVariant, token: &str) -> Vec<(String, String)> {
+        let mut envs = vec![
+            (CLAW_UI_AUTH_MODE_ENV.to_string(), "bearer".to_string()),
+            (CLAW_UI_BEARER_TOKEN_ENV.to_string(), token.to_string()),
+        ];
+
+        match variant {
+            ClawVariant::Openclaw => {
+                envs.push(("OPENCLAW_GATEWAY_TOKEN".to_string(), token.to_string()));
+            }
+            ClawVariant::Nanoclaw => {
+                envs.push(("NANOCLAW_UI_BEARER_TOKEN".to_string(), token.to_string()));
+            }
+            ClawVariant::Ironclaw => {
+                envs.push(("GATEWAY_AUTH_TOKEN".to_string(), token.to_string()));
+            }
+        }
+
+        envs
+    }
 }
 
 impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
@@ -340,6 +364,7 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
         self.maybe_pull(&image)?;
         let container_name = self.container_name(&input.id, &input.claw_variant);
         let ui_container_port = self.resolve_ui_port(&input.claw_variant, &image)?;
+        let ui_bearer_token = issue_ui_bearer_token();
 
         let mut args = vec![
             "create".to_string(),
@@ -356,6 +381,10 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
             "--env".to_string(),
             format!("OPENCLAW_VARIANT={}", input.claw_variant),
         ];
+        for (key, value) in self.ui_auth_env_bindings(&input.claw_variant, &ui_bearer_token) {
+            args.push("--env".to_string());
+            args.push(format!("{key}={value}"));
+        }
         if let Some(port) = ui_container_port {
             args.push("-p".to_string());
             args.push(format!("127.0.0.1::{port}"));
@@ -407,6 +436,9 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
                 container_status: Some("created".to_string()),
                 ui_host_port: host_port,
                 ui_local_url,
+                ui_auth_scheme: Some("bearer".to_string()),
+                ui_auth_env_key: Some(CLAW_UI_BEARER_TOKEN_ENV.to_string()),
+                ui_bearer_token: Some(ui_bearer_token),
                 setup_url,
                 setup_status,
                 setup_command,
@@ -845,6 +877,10 @@ fn validate_env_key(key: &str) -> Result<()> {
     Ok(())
 }
 
+fn issue_ui_bearer_token() -> String {
+    format!("claw_ui_{}", uuid::Uuid::new_v4().simple())
+}
+
 fn run_docker(args: &[String]) -> Result<String> {
     let output = Command::new("docker")
         .args(args)
@@ -964,6 +1000,9 @@ mod tests {
                 container_status: None,
                 ui_host_port: None,
                 ui_local_url: None,
+                ui_auth_scheme: None,
+                ui_auth_env_key: None,
+                ui_bearer_token: None,
                 setup_url: None,
                 setup_status: None,
                 setup_command: None,
@@ -1018,6 +1057,28 @@ mod tests {
     }
 
     #[test]
+    fn ui_auth_env_bindings_include_canonical_key() {
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "a".to_string(),
+                nanoclaw: "b".to_string(),
+                ironclaw: "c".to_string(),
+            },
+            auto_pull: false,
+            auto_trigger_setup: false,
+        };
+        let envs = adapter.ui_auth_env_bindings(&ClawVariant::Openclaw, "tok");
+        assert!(
+            envs.iter()
+                .any(|(k, v)| k == CLAW_UI_BEARER_TOKEN_ENV && v == "tok")
+        );
+        assert!(
+            envs.iter()
+                .any(|(k, v)| k == "OPENCLAW_GATEWAY_TOKEN" && v == "tok")
+        );
+    }
+
+    #[test]
     fn validate_env_key_rejects_invalid_values() {
         assert!(validate_env_key("OK_KEY").is_ok());
         assert!(validate_env_key("").is_err());
@@ -1052,6 +1113,9 @@ mod tests {
                 container_status: Some("running".to_string()),
                 ui_host_port: None,
                 ui_local_url: None,
+                ui_auth_scheme: Some("bearer".to_string()),
+                ui_auth_env_key: Some(CLAW_UI_BEARER_TOKEN_ENV.to_string()),
+                ui_bearer_token: Some("tok".to_string()),
                 setup_url: None,
                 setup_status: Some("pending".to_string()),
                 setup_command: Some("echo hi".to_string()),

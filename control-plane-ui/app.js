@@ -90,8 +90,9 @@ async function renderInstances() {
     const runtime = instance.runtime ?? {};
     const setupStatus = runtime.setupStatus ?? "n/a";
     const localUi = runtime.uiLocalUrl ?? "n/a";
+    const secured = runtime.hasUiBearerToken ? "secured" : "unsecured";
     const details = document.createElement("span");
-    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl} - local: ${localUi} - setup: ${setupStatus}`;
+    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl} - local: ${localUi} - setup: ${setupStatus} - ${secured}`;
     li.append(details);
 
     const actions = document.createElement("span");
@@ -185,6 +186,34 @@ async function renderInstances() {
       }
     });
     actions.append(setupButton);
+
+    const accessButton = document.createElement("button");
+    accessButton.type = "button";
+    accessButton.textContent = "show-access";
+    accessButton.style.marginLeft = "4px";
+    accessButton.addEventListener("click", async () => {
+      try {
+        accessButton.disabled = true;
+        const access = await getJson(`/instances/${instance.id}/access`);
+        const lines = [
+          `Instance: ${access.instanceId}`,
+          `Auth: ${access.authScheme}`,
+          `Bearer: ${access.bearerToken}`,
+          `Local UI: ${access.uiLocalUrl ?? "n/a"}`,
+          `Public URL: ${access.publicUrl ?? "n/a"}`,
+          "",
+          "Use header:",
+          `Authorization: Bearer ${access.bearerToken}`
+        ];
+        window.alert(lines.join("\n"));
+        setStatus("Fetched instance access credentials.");
+      } catch (error) {
+        setStatus(`Access lookup failed: ${error.message}`, true);
+      } finally {
+        accessButton.disabled = false;
+      }
+    });
+    actions.append(accessButton);
 
     li.append(actions);
     list.append(li);
