@@ -26,6 +26,12 @@ pub struct RuntimeView {
     pub container_name: Option<String>,
     pub container_id: Option<String>,
     pub container_status: Option<String>,
+    pub ui_host_port: Option<u16>,
+    pub ui_local_url: Option<String>,
+    pub setup_url: Option<String>,
+    pub setup_status: Option<String>,
+    pub setup_command: Option<String>,
+    pub setup_instructions: Option<String>,
     pub last_error: Option<String>,
 }
 
@@ -76,6 +82,12 @@ pub fn instance_view(record: &InstanceRecord) -> InstanceView {
             container_name: record.runtime.container_name.clone(),
             container_id: record.runtime.container_id.clone(),
             container_status: record.runtime.container_status.clone(),
+            ui_host_port: record.runtime.ui_host_port,
+            ui_local_url: record.runtime.ui_local_url.clone(),
+            setup_url: record.runtime.setup_url.clone(),
+            setup_status: record.runtime.setup_status.clone(),
+            setup_command: record.runtime.setup_command.clone(),
+            setup_instructions: record.runtime.setup_instructions.clone(),
             last_error: record.runtime.last_error.clone(),
         },
     }

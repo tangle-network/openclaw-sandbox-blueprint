@@ -153,6 +153,18 @@ pub struct RuntimeBinding {
     #[serde(default)]
     pub container_status: Option<String>,
     #[serde(default)]
+    pub ui_host_port: Option<u16>,
+    #[serde(default)]
+    pub ui_local_url: Option<String>,
+    #[serde(default)]
+    pub setup_url: Option<String>,
+    #[serde(default)]
+    pub setup_status: Option<String>,
+    #[serde(default)]
+    pub setup_command: Option<String>,
+    #[serde(default)]
+    pub setup_instructions: Option<String>,
+    #[serde(default)]
     pub last_error: Option<String>,
 }
 
@@ -164,6 +176,12 @@ impl Default for RuntimeBinding {
             container_name: None,
             container_id: None,
             container_status: None,
+            ui_host_port: None,
+            ui_local_url: None,
+            setup_url: None,
+            setup_status: None,
+            setup_command: None,
+            setup_instructions: None,
             last_error: None,
         }
     }

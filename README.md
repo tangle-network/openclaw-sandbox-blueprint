@@ -59,6 +59,7 @@ operator HTTP API:
 - `GET /templates`
 - `GET /instances` (requires bearer auth)
 - `GET /instances/{id}` (requires bearer auth)
+- `POST /instances/{id}/setup/start` (requires scoped bearer auth)
 
 Session endpoints:
 
@@ -162,21 +163,49 @@ Enable Docker-backed lifecycle execution:
 ```bash
 export OPENCLAW_RUNTIME_BACKEND=docker
 export OPENCLAW_IMAGE_OPENCLAW=ghcr.io/<org>/<openclaw-image>:<tag>
-export OPENCLAW_IMAGE_NANOCLAW=ghcr.io/<org>/<nanoclaw-image>:<tag>
 export OPENCLAW_IMAGE_IRONCLAW=ghcr.io/<org>/<ironclaw-image>:<tag>
 export OPENCLAW_DOCKER_PULL=true # optional, default true
 ```
 
+NanoClaw image options:
+
+- prebuilt image:
+  - `OPENCLAW_IMAGE_NANOCLAW=<image:tag>`
+- or build on demand during adapter init:
+  - `OPENCLAW_NANOCLAW_BUILD_CONTEXT=/path/to/nanoclaw`
+  - optional `OPENCLAW_NANOCLAW_BUILD_SCRIPT=container/build.sh`
+  - optional `OPENCLAW_NANOCLAW_BUILD_IMAGE_NAME=nanoclaw-agent`
+  - optional `OPENCLAW_NANOCLAW_BUILD_TAG=latest`
+
 Behavior:
 
 - `create` creates a container from the variant-mapped image.
+- UI port mapping defaults:
+  - OpenClaw: `18789`
+  - IronClaw: `3000`
+  - NanoClaw: inferred from image metadata or explicit env override
+- per-variant UI port override: `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_UI_PORT`
 - `start` runs `docker start`.
 - `stop` runs `docker stop`.
 - `delete` runs `docker rm -f`.
-- query surfaces include runtime metadata (`backend`, image, container status, last error).
+- query surfaces include runtime metadata (`backend`, image, container status, local UI URL, setup status, last error).
+- setup bootstrap can be triggered with `POST /instances/{id}/setup/start` (scoped session required).
+- default setup commands:
+  - OpenClaw: `openclaw onboard`
+  - NanoClaw: `bash setup.sh`
+  - IronClaw: `ironclaw onboard`
+- command override per variant: `OPENCLAW_VARIANT_<...>_SETUP_COMMAND`
+- setup env allowlist per variant: `OPENCLAW_VARIANT_<...>_SETUP_ENV_KEYS` (comma-separated)
 
 This repository does not publish or bundle the variant images. You must provide
 valid image references for your environment.
+
+## Security posture (current)
+
+- Containers are bound to loopback only (`127.0.0.1` port mapping), not exposed directly on public interfaces.
+- Operator API setup execution is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
+- Setup env keys are validated and only injected for the setup execution call; they are not persisted in instance state.
+- UI ingress should still be fronted by authenticated tunnel/reverse proxy before internet exposure.
 
 ## State location
 

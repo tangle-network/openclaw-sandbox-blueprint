@@ -415,10 +415,8 @@ fn instance_response(record: &InstanceRecord) -> InstanceResponse {
         },
         "runtime": {
             "backend": record.runtime.backend.clone(),
-            "image": record.runtime.image.clone(),
-            "container_name": record.runtime.container_name.clone(),
-            "container_id": record.runtime.container_id.clone(),
             "container_status": record.runtime.container_status.clone(),
+            "setup_status": record.runtime.setup_status.clone(),
             "last_error": record.runtime.last_error.clone(),
         },
         "state": record.state.to_string(),

@@ -33,7 +33,7 @@ Library crate containing all business logic:
 - **`query.rs`** — reusable read-only query helpers (instance/template views).
 - **`auth.rs`** — challenge/session auth service for operator API access control.
 - **`operator_api.rs`** — axum router and handlers for `/health`,
-  `/templates`, `/instances`, and auth/session endpoints.
+  `/templates`, `/instances`, auth/session endpoints, and setup trigger endpoint.
 - **`state.rs`** — File-backed persistent store for `InstanceRecord` objects.
   Uses `once_cell::OnceCell` + `Mutex<BTreeMap>` with JSON persistence.
 - **`error.rs`** — Domain error type (`InstanceError`) with conversions to
@@ -82,6 +82,7 @@ HTTP API (axum):
 
 - `GET /instances` — list instances (scoped by bearer claims)
 - `GET /instances/{id}` — instance detail
+- `POST /instances/{id}/setup/start` — trigger variant setup bootstrap (scoped session only)
 - `GET /templates` — list template packs
 - `GET /health` — liveness check
 
@@ -125,6 +126,8 @@ The adapter boundary is implemented:
 - `LocalStateRuntimeAdapter` is the default adapter (file-backed local state).
 - `DockerRuntimeAdapter` executes real container lifecycle via Docker CLI when
   `OPENCLAW_RUNTIME_BACKEND=docker` and image env vars are configured.
+- Runtime maps UI ports to loopback host addresses only (`127.0.0.1`), so
+  public exposure must happen through an authenticated tunnel/reverse proxy layer.
 - `init_instance_runtime_adapter(...)` allows replacing the default with a
   sandbox-runtime-backed adapter.
 

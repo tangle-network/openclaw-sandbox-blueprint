@@ -35,6 +35,8 @@ disambiguation baseline for product/runtime mappings.
 - `openclaw`: confirmed public image (`ghcr.io/openclaw/openclaw:latest`)
 - `nanoclaw`: project/docs are real, but official public image is unverified;
   repository provides Dockerfile/build scripts for self-building image artifacts
+- this blueprint supports NanoClaw script-based image builds via
+  `OPENCLAW_NANOCLAW_BUILD_CONTEXT` + `OPENCLAW_NANOCLAW_BUILD_SCRIPT`
 - `ironclaw`: public image exists (`nearaidev/ironclaw-nearai-worker:latest`),
   but deployment references are split across registries and should be validated
   per environment before production rollout
