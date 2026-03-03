@@ -1,16 +1,25 @@
-# OpenClaw Hosting Blueprint Spec (Scaffold)
+# OpenClaw Hosting Blueprint Spec
 
-This repository provides the initial product-layer blueprint for creating and operating hosted OpenClaw instances on top of sandbox runtime contracts.
+Blueprint-SDK-native Rust implementation for hosted OpenClaw instance
+orchestration on the Tangle network.
 
-Current scaffold scope:
+## Implementation scope
 
-- Lifecycle state changes are job-driven (`create`, `start`, `stop`, `delete`).
-- Read-only status/list operations are direct HTTP service endpoints.
-- Template packs define SOUL/USER/TOOLS presets for Discord, Telegram, Ops, and Custom mode.
-- Control-plane UI supports selecting a template pack and launching an instance.
+- **Rust + blueprint-sdk architecture.** The primary implementation path is Rust
+  using `blueprint-sdk` crate patterns (sol! types, TangleLayer, BlueprintRunner).
+- **Lifecycle state changes are on-chain jobs only:**
+  `create` (0), `start` (1), `stop` (2), `delete` (3).
+- **Read-only operations are query surfaces only:**
+  instance list, instance detail, template list, health check.
+- **Template packs** define SOUL/USER/TOOLS presets for Discord, Telegram, Ops,
+  and Custom mode.
+- **File-backed persistent state** for instance records with ownership tracking.
+- **Caller ownership validation** on all lifecycle operations.
 
-Out of scope in this scaffold:
+## Out of scope
 
-- Real Firecracker orchestration.
-- Durable storage and queueing.
+- Real Firecracker/VM orchestration (delegated to sandbox runtime).
+- Operator HTTP API for queries (planned, not yet wired).
+- Durable queueing beyond file-backed JSON store.
 - AuthN/AuthZ, billing, and production policy enforcement.
+- Control-plane UI backend (static reference UI retained for development).
