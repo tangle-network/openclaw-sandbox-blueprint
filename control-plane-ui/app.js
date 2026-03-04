@@ -215,6 +215,110 @@ async function renderInstances() {
     });
     actions.append(accessButton);
 
+    const terminalButton = document.createElement("button");
+    terminalButton.type = "button";
+    terminalButton.textContent = "terminal-cmd";
+    terminalButton.style.marginLeft = "4px";
+    terminalButton.disabled = instance.status !== "running";
+    terminalButton.addEventListener("click", async () => {
+      const command = window.prompt("Terminal command to run", "echo hello");
+      if (!command || !command.trim()) {
+        return;
+      }
+      try {
+        terminalButton.disabled = true;
+        const created = await getJson(`/instances/${instance.id}/terminals`, { method: "POST" });
+        const terminalId = created?.data?.sessionId;
+        if (!terminalId) {
+          throw new Error("terminal session id missing");
+        }
+        const output = await getJson(`/instances/${instance.id}/terminals/${terminalId}/execute`, {
+          method: "POST",
+          body: JSON.stringify({ command })
+        });
+        await getJson(`/instances/${instance.id}/terminals/${terminalId}`, { method: "DELETE" });
+        const lines = [
+          `Exit: ${output.exitCode ?? "n/a"}`,
+          "STDOUT:",
+          output.stdout ?? "",
+          "",
+          "STDERR:",
+          output.stderr ?? ""
+        ];
+        window.alert(lines.join("\n"));
+        setStatus("Terminal command executed.");
+      } catch (error) {
+        setStatus(`Terminal command failed: ${error.message}`, true);
+      } finally {
+        terminalButton.disabled = false;
+      }
+    });
+    actions.append(terminalButton);
+
+    const sshButton = document.createElement("button");
+    sshButton.type = "button";
+    sshButton.textContent = "ssh-key";
+    sshButton.style.marginLeft = "4px";
+    sshButton.disabled = instance.status !== "running";
+    sshButton.addEventListener("click", async () => {
+      const mode = window.prompt("SSH mode: add or revoke", "add");
+      if (!mode) return;
+      const username = window.prompt("SSH username", "agent");
+      if (!username) return;
+      const publicKey = window.prompt("SSH public key (single line)", "");
+      if (!publicKey) return;
+      const method = mode.toLowerCase().startsWith("r") ? "DELETE" : "POST";
+      try {
+        sshButton.disabled = true;
+        await getJson(`/instances/${instance.id}/ssh`, {
+          method,
+          body: JSON.stringify({ username, publicKey })
+        });
+        setStatus(`SSH key ${method === "POST" ? "added" : "revoked"}.`);
+      } catch (error) {
+        setStatus(`SSH key update failed: ${error.message}`, true);
+      } finally {
+        sshButton.disabled = false;
+      }
+    });
+    actions.append(sshButton);
+
+    const chatButton = document.createElement("button");
+    chatButton.type = "button";
+    chatButton.textContent = "chat-once";
+    chatButton.style.marginLeft = "4px";
+    chatButton.disabled = instance.status !== "running";
+    chatButton.addEventListener("click", async () => {
+      const prompt = window.prompt("Chat prompt", "hello");
+      if (!prompt || !prompt.trim()) return;
+      try {
+        chatButton.disabled = true;
+        const created = await getJson(`/instances/${instance.id}/session/sessions`, {
+          method: "POST",
+          body: JSON.stringify({ title: "Control UI Session" })
+        });
+        const sessionId = created?.id;
+        if (!sessionId) throw new Error("chat session id missing");
+        await getJson(`/instances/${instance.id}/session/sessions/${sessionId}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ parts: [{ type: "text", text: prompt }] })
+        });
+        const messages = await getJson(`/instances/${instance.id}/session/sessions/${sessionId}/messages?limit=10`);
+        const array = Array.isArray(messages) ? messages : [];
+        const assistant = [...array]
+          .reverse()
+          .find((item) => item?.info?.role === "assistant");
+        const reply = assistant?.parts?.[0]?.text ?? "No assistant response yet.";
+        window.alert(`Assistant:\n${reply}`);
+        setStatus("Chat request completed.");
+      } catch (error) {
+        setStatus(`Chat request failed: ${error.message}`, true);
+      } finally {
+        chatButton.disabled = false;
+      }
+    });
+    actions.append(chatButton);
+
     li.append(actions);
     list.append(li);
   }
