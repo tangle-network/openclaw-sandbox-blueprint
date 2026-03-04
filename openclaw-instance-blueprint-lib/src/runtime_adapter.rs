@@ -1006,45 +1006,12 @@ fn validate_env_key(key: &str) -> Result<()> {
 }
 
 fn validate_ssh_username(username: &str) -> Result<()> {
-    let value = username.trim();
-    if value.is_empty() {
-        return Err(InstanceError::Store(
-            "ssh username must not be empty".to_string(),
-        ));
-    }
-    if !value
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-    {
-        return Err(InstanceError::Store(format!(
-            "ssh username `{value}` contains unsupported characters"
-        )));
-    }
-    Ok(())
+    sandbox_runtime::ssh_validation::validate_ssh_username(username).map_err(InstanceError::Store)
 }
 
 fn validate_ssh_public_key(public_key: &str) -> Result<()> {
-    let value = public_key.trim();
-    if value.is_empty() {
-        return Err(InstanceError::Store(
-            "ssh public key must not be empty".to_string(),
-        ));
-    }
-    if value.contains('\n') || value.contains('\r') {
-        return Err(InstanceError::Store(
-            "ssh public key must be a single line".to_string(),
-        ));
-    }
-    let allowed_prefixes = ["ssh-rsa ", "ssh-ed25519 ", "ecdsa-sha2-", "sk-ssh-ed25519@"];
-    if !allowed_prefixes
-        .iter()
-        .any(|prefix| value.starts_with(prefix))
-    {
-        return Err(InstanceError::Store(format!(
-            "unsupported ssh public key type for key `{value}`"
-        )));
-    }
-    Ok(())
+    sandbox_runtime::ssh_validation::validate_ssh_public_key(public_key)
+        .map_err(InstanceError::Store)
 }
 
 fn product_variant(variant: &ClawVariant) -> ClawProductVariant {

@@ -6523,17 +6523,18 @@ dependencies = [
 name = "openclaw-instance-blueprint-lib"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
  "axum",
  "blueprint-sdk",
  "chrono",
+ "hex",
+ "k256",
  "once_cell",
  "reqwest",
  "sandbox-runtime",
  "serde",
  "serde_json",
+ "tiny-keccak",
  "tokio",
- "tokio-stream",
  "tracing",
  "uuid 1.21.0",
 ]
@@ -7980,7 +7981,7 @@ dependencies = [
 [[package]]
 name = "sandbox-runtime"
 version = "0.1.0"
-source = "git+https://github.com/tangle-network/ai-agent-sandbox-blueprint.git?rev=e4a8ea2#e4a8ea273acac58629fe78398b627dde6fb78535"
+source = "git+https://github.com/tangle-network/ai-agent-sandbox-blueprint.git?rev=d157ffc#d157ffcf83f0021d7dddac0b373aa9f2a28b4eb7"
 dependencies = [
  "alloy",
  "async-trait",
@@ -8004,6 +8005,7 @@ dependencies = [
  "time",
  "tiny-keccak",
  "tokio",
+ "tokio-stream",
  "tower",
  "tower-http",
  "tracing",
