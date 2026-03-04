@@ -23,7 +23,8 @@ openclaw-instance-blueprint-bin/    # binary: runner entry point (main.rs)
 openclaw-tee-instance-blueprint-lib/ # TEE variant library wrapper
 openclaw-tee-instance-blueprint-bin/ # TEE variant runner binary
 config/templates/                  # template packs (SOUL/USER/TOOLS presets)
-control-plane-ui/                  # reference control-plane UI (static HTML/JS)
+ui/                                # React source UI (blueprint-ui + agent-ui)
+control-plane-ui/                  # embedded operator-served UI build artifacts
 docs/                              # architecture notes
 ```
 
@@ -56,6 +57,7 @@ Read-only operations are **not** on-chain jobs. They are served via the
 operator HTTP API:
 
 - `GET /` (serves the built-in control-plane UI shell)
+- `GET /assets/*` (serves code-split UI chunks for the control-plane shell)
 - `GET /health`
 - `GET /templates`
 - `GET /instances` (requires bearer auth)
@@ -107,6 +109,7 @@ Pre-configured SOUL/USER/TOOLS presets in `config/templates/`:
 ```bash
 cargo check --all-features
 cargo build --release
+cd ui && pnpm install && pnpm run build:embedded && cd -
 ```
 
 ### Test
@@ -170,7 +173,7 @@ Docker execution backend for lifecycle operations. The runtime adapter boundary
 is defined and wired in the lib crate:
 
 - `InstanceRuntimeAdapter` trait = product/runtime integration contract
-- `LocalStateRuntimeAdapter` = default local projection adapter
+- `LocalStateRuntimeAdapter` = in-memory/file projection adapter used for tests
 - `DockerRuntimeAdapter` = lifecycle execution through Docker CLI (`create/start/stop/rm`)
 
 Job handlers call the adapter, not storage internals directly. A future

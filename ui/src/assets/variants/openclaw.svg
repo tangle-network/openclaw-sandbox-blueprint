@@ -1,0 +1,33 @@
+<svg width="640" height="360" viewBox="0 0 640 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="640" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1221"/>
+      <stop offset="1" stop-color="#071B1A"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(172 74) rotate(35.2) scale(286 173)">
+      <stop stop-color="#2DD4BF" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#2DD4BF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(484 290) rotate(170.1) scale(250 142)">
+      <stop stop-color="#14B8A6" stop-opacity="0.52"/>
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="claw" x1="150" y1="102" x2="470" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#99F6E4"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="360" rx="24" fill="url(#bg)"/>
+  <rect x="24" y="24" width="592" height="312" rx="18" stroke="rgba(255,255,255,0.10)"/>
+  <ellipse cx="188" cy="108" rx="220" ry="136" fill="url(#g1)"/>
+  <ellipse cx="464" cy="276" rx="200" ry="122" fill="url(#g2)"/>
+
+  <path d="M184 252C236 211 256 183 268 120" stroke="url(#claw)" stroke-width="16" stroke-linecap="round"/>
+  <path d="M250 266C303 224 326 194 348 114" stroke="url(#claw)" stroke-width="16" stroke-linecap="round"/>
+  <path d="M318 272C374 231 407 194 432 118" stroke="url(#claw)" stroke-width="16" stroke-linecap="round"/>
+
+  <path d="M160 278C249 294 392 293 478 270" stroke="#5EEAD4" stroke-opacity="0.52" stroke-width="4" stroke-linecap="round"/>
+  <text x="44" y="62" fill="#CCFBF1" font-size="22" font-family="Sora, sans-serif" font-weight="700">OpenClaw</text>
+  <text x="44" y="88" fill="#9EE8DE" font-size="14" font-family="IBM Plex Mono, monospace">balanced runtime profile</text>
+</svg>

@@ -62,7 +62,33 @@ pub struct TemplatePack {
     pub description: String,
 }
 
+fn extract_url_suffix(raw: &str) -> Option<&str> {
+    if raw.is_empty() {
+        return None;
+    }
+    if raw.starts_with('/') {
+        return Some(raw);
+    }
+    if let Some(scheme_idx) = raw.find("://") {
+        let after_scheme = &raw[(scheme_idx + 3)..];
+        if let Some(path_idx) = after_scheme.find('/') {
+            return Some(&after_scheme[path_idx..]);
+        }
+        return Some("/");
+    }
+    None
+}
+
+fn resolve_setup_url_for_owner(record: &InstanceRecord) -> Option<String> {
+    let setup_url = record.runtime.setup_url.as_deref()?;
+    let public_url = record.ui_access.public_url.as_deref()?;
+    let suffix = extract_url_suffix(setup_url)?;
+    Some(format!("{}{}", public_url.trim_end_matches('/'), suffix))
+}
+
 pub fn instance_view(record: &InstanceRecord) -> InstanceView {
+    let setup_url = resolve_setup_url_for_owner(record).or_else(|| record.runtime.setup_url.clone());
+
     InstanceView {
         id: record.id.clone(),
         name: record.name.clone(),
@@ -90,7 +116,7 @@ pub fn instance_view(record: &InstanceRecord) -> InstanceView {
             ui_auth_scheme: record.runtime.ui_auth_scheme.clone(),
             ui_auth_env_key: record.runtime.ui_auth_env_key.clone(),
             has_ui_bearer_token: record.runtime.ui_bearer_token.is_some(),
-            setup_url: record.runtime.setup_url.clone(),
+            setup_url,
             setup_status: record.runtime.setup_status.clone(),
             setup_command: record.runtime.setup_command.clone(),
             setup_instructions: record.runtime.setup_instructions.clone(),
@@ -158,4 +184,61 @@ pub fn load_template_packs() -> Result<Vec<TemplatePack>> {
 
     packs.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(packs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{
+        ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, RuntimeBinding, UiAccess,
+        UiAuthMode, UiTunnelStatus,
+    };
+
+    fn test_record(public_url: Option<&str>, setup_url: Option<&str>) -> InstanceRecord {
+        InstanceRecord {
+            id: "inst-1".to_string(),
+            name: "instance".to_string(),
+            template_pack_id: "ops".to_string(),
+            claw_variant: ClawVariant::Openclaw,
+            config_json: "{}".to_string(),
+            owner: "0x1".to_string(),
+            ui_access: UiAccess {
+                public_url: public_url.map(ToString::to_string),
+                tunnel_status: UiTunnelStatus::Active,
+                auth_mode: UiAuthMode::AccessToken,
+                owner_only: true,
+            },
+            runtime: RuntimeBinding {
+                setup_url: setup_url.map(ToString::to_string),
+                ..RuntimeBinding::default()
+            },
+            execution_target: ExecutionTarget::Standard,
+            state: InstanceState::Running,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn setup_url_prefers_public_host_when_available() {
+        let record = test_record(
+            Some("https://my-instance.example.com"),
+            Some("http://127.0.0.1:32123/setup?mode=quick"),
+        );
+        let view = instance_view(&record);
+        assert_eq!(
+            view.runtime.setup_url.as_deref(),
+            Some("https://my-instance.example.com/setup?mode=quick")
+        );
+    }
+
+    #[test]
+    fn setup_url_falls_back_to_runtime_url_when_public_missing() {
+        let record = test_record(None, Some("http://127.0.0.1:32123/setup"));
+        let view = instance_view(&record);
+        assert_eq!(
+            view.runtime.setup_url.as_deref(),
+            Some("http://127.0.0.1:32123/setup")
+        );
+    }
 }

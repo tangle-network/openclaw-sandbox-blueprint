@@ -26,14 +26,63 @@ TEE policy for this repo:
   - runtime now uses a terminal-first long-lived profile for hosted instances
     (no native NanoClaw web UI assumption).
 
+## Verified UI Build Truths (March 4, 2026)
+
+- Source UI lives in `ui/` (React + shared `blueprint-ui`/`agent-ui`).
+- Operator-served assets live in `control-plane-ui/` and are generated output,
+  not hand-edited source.
+- Always run `cd ui && pnpm run build:embedded` after UI changes.
+- Operator API must serve:
+  - `/` + `/app.js` + `/styles.css`
+  - `/assets/*` for split chunks.
+- Do not force single-file bundles just to avoid serving `/assets/*`; that
+  regresses first-load performance.
+
+## Remote Access Contract (March 4, 2026)
+
+- Treat loopback (`127.0.0.1` / `localhost`) as internal-only runtime plumbing.
+- User-facing URLs (`publicUrl`, `setupUrl`, UI links shown in cards) must not
+  be loopback when remote mode is enabled.
+- Keep internal and external URLs distinct:
+  - internal: operator-local container reachability
+  - external: browser-reachable tunnel/public origin
+- Browser RPC must not silently fall back to localhost. Use explicit
+  `VITE_RPC_URL` / `VITE_WS_RPC_URL`, or derive from browser host with explicit
+  port mapping.
+- Operator API client must support explicit base URL config
+  (`VITE_OPERATOR_API_BASE_URL`) and build URLs with `new URL(path, base)`.
+- Remote mode (`OPENCLAW_REMOTE_ACCESS=1`) must fail fast when outward-facing
+  URLs resolve to loopback.
+
+## UI Quality Gates (Required for UI PRs)
+
+- Notification channel must be visible and accessible:
+  - render async/system notices in UI
+  - include `aria-live` status/alert semantics
+- Destructive actions require confirmation/undo paths:
+  - instance delete must require explicit confirm
+  - session delete must support explicit confirm or undo window
+- No hardcoded low-contrast accent text classes in product JSX
+  (`text-rose-200|300`, `text-teal-200`, `text-amber-200` on light surfaces).
+  Use semantic theme tokens only.
+- Form labels must bind to controls via `htmlFor` + `id`.
+- Motion must respect `prefers-reduced-motion`.
+- Embedded asset parity must be enforced after `pnpm run build:embedded`
+  (source `ui/` and generated `control-plane-ui/` remain in sync).
+
 ## Do
 
 - Validate behavior against real images, not only placeholder images.
 - Fail fast on runtime prerequisites (for example, missing IronClaw auth env).
+- Keep default UX one-click and move low-level controls into explicit
+  "Advanced" sections.
 - Keep synthetic CI and real-image CI separate:
   - synthetic lane for fast deterministic checks
   - real-image lane for weekly/manual production-adjacent proof
 - Record evidence with exact commands and outcomes in PR descriptions.
+- For UI changes, record both:
+  - `pnpm run build:embedded`
+  - `cargo test -p openclaw-instance-blueprint-lib`
 
 ## Do Not
 
@@ -43,6 +92,10 @@ TEE policy for this repo:
   verifying network reachability and auth startup behavior.
 - Do not run one-shot variant entrypoints directly in hosted mode without an
   explicit hosted command profile.
+- Do not ship hand-maintained UI logic in `control-plane-ui/`; it must be
+  generated from `ui/`.
+- Do not expose loopback setup/public URLs to remote users.
+- Do not ship browser RPC/API defaults that require end-user localhost to work.
 
 ## Verified Flows
 

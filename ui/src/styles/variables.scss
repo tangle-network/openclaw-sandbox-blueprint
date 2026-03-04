@@ -1,0 +1,96 @@
+:root,
+:root[data-theme='dark'] {
+  --claw-elements-borderColor: rgba(230, 239, 249, 0.18);
+  --claw-elements-borderColorActive: #38bdf8;
+
+  --claw-elements-bg-depth-1: #060a13;
+  --claw-elements-bg-depth-2: #0f1725;
+  --claw-elements-bg-depth-3: #1a2740;
+  --claw-elements-bg-depth-4: #243859;
+
+  --claw-elements-textPrimary: #fbfdff;
+  --claw-elements-textSecondary: #d3e3f4;
+  --claw-elements-textTertiary: #b5cadf;
+  --claw-elements-text-success: #22d3ee;
+  --claw-elements-text-warning: #fbbf24;
+  --claw-elements-text-danger: #fb7185;
+  --claw-elements-text-accent: #34d399;
+
+  --claw-elements-button-primary-background: rgba(16, 185, 129, 0.26);
+  --claw-elements-button-primary-backgroundHover: rgba(16, 185, 129, 0.4);
+  --claw-elements-button-primary-text: #f7fbff;
+
+  --claw-elements-button-secondary-background: rgba(226, 236, 248, 0.16);
+  --claw-elements-button-secondary-backgroundHover: rgba(226, 236, 248, 0.26);
+  --claw-elements-button-secondary-text: #f7fbff;
+
+  --claw-elements-button-danger-background: rgba(251, 113, 133, 0.22);
+  --claw-elements-button-danger-backgroundHover: rgba(251, 113, 133, 0.32);
+  --claw-elements-button-danger-text: #ffe4ea;
+
+  --claw-elements-icon-success: #22d3ee;
+  --claw-elements-icon-error: #fb7185;
+  --claw-elements-icon-warning: #fbbf24;
+  --claw-elements-icon-primary: #f7fbff;
+  --claw-elements-icon-secondary: #b9cadf;
+
+  --claw-elements-dividerColor: rgba(226, 236, 248, 0.22);
+  --claw-elements-item-backgroundHover: rgba(226, 236, 248, 0.1);
+  --claw-elements-item-backgroundActive: rgba(226, 236, 248, 0.18);
+  --claw-elements-focus: #34d399;
+
+  --glass-bg: rgba(11, 19, 31, 0.92);
+  --glass-bg-strong: rgba(8, 14, 25, 0.95);
+  --glass-border: rgba(197, 216, 237, 0.24);
+  --glass-border-hover: rgba(197, 216, 237, 0.36);
+  --cloud-elements-textPrimary: var(--claw-elements-textPrimary);
+
+}
+
+:root[data-theme='light'] {
+  --claw-elements-borderColor: rgba(17, 24, 39, 0.22);
+  --claw-elements-borderColorActive: #0f766e;
+
+  --claw-elements-bg-depth-1: #f7f8fb;
+  --claw-elements-bg-depth-2: #edf1f8;
+  --claw-elements-bg-depth-3: #dee6f4;
+  --claw-elements-bg-depth-4: #c9d8ee;
+
+  --claw-elements-textPrimary: #0b1329;
+  --claw-elements-textSecondary: #1a2943;
+  --claw-elements-textTertiary: #334766;
+  --claw-elements-text-success: #0f766e;
+  --claw-elements-text-warning: #92400e;
+  --claw-elements-text-danger: #be123c;
+  --claw-elements-text-accent: #115e59;
+
+  --claw-elements-button-primary-background: rgba(15, 118, 110, 0.16);
+  --claw-elements-button-primary-backgroundHover: rgba(15, 118, 110, 0.24);
+  --claw-elements-button-primary-text: #0b3f3b;
+
+  --claw-elements-button-secondary-background: rgba(15, 23, 42, 0.14);
+  --claw-elements-button-secondary-backgroundHover: rgba(15, 23, 42, 0.2);
+  --claw-elements-button-secondary-text: #0f172a;
+
+  --claw-elements-button-danger-background: rgba(225, 29, 72, 0.12);
+  --claw-elements-button-danger-backgroundHover: rgba(225, 29, 72, 0.2);
+  --claw-elements-button-danger-text: #9f1239;
+
+  --claw-elements-icon-success: #2563eb;
+  --claw-elements-icon-error: #be123c;
+  --claw-elements-icon-warning: #b45309;
+  --claw-elements-icon-primary: #0f172a;
+  --claw-elements-icon-secondary: #334155;
+
+  --claw-elements-dividerColor: rgba(30, 41, 59, 0.22);
+  --claw-elements-item-backgroundHover: rgba(37, 99, 235, 0.08);
+  --claw-elements-item-backgroundActive: rgba(37, 99, 235, 0.14);
+  --claw-elements-focus: #0f766e;
+
+  --glass-bg: rgba(255, 255, 255, 0.97);
+  --glass-bg-strong: rgba(255, 255, 255, 0.98);
+  --glass-border: rgba(30, 41, 59, 0.2);
+  --glass-border-hover: rgba(15, 23, 42, 0.25);
+  --cloud-elements-textPrimary: var(--claw-elements-textPrimary);
+
+}
