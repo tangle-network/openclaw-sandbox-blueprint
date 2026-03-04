@@ -132,13 +132,13 @@
 .wizard-step-shell {
   min-height: clamp(460px, 58dvh, 620px);
   max-height: min(620px, 70dvh);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 14px;
 }
 
 .wizard-step-body {
-  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -194,8 +194,25 @@
   color: var(--claw-elements-text-accent);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .variant-card,
+  .template-card {
+    transition: none;
+  }
+
+  .variant-card:hover,
+  .template-card:hover {
+    transform: none;
+  }
+}
+
 @media (max-width: 900px) {
   body {
     font-size: 14px;
+  }
+
+  .wizard-step-shell {
+    min-height: 420px;
+    max-height: 72dvh;
   }
 }

@@ -6,9 +6,11 @@ import {
   useSessionStream,
   useSessions,
   ChatContainer,
+  copyText,
+  truncateAddress,
   type AgentBranding,
 } from '@tangle-network/agent-ui';
-import { useSubmitJob } from '@tangle-network/blueprint-ui';
+import { selectedChainIdStore, useSubmitJob } from '@tangle-network/blueprint-ui';
 import {
   AnimatedPage,
   Badge,
@@ -26,7 +28,7 @@ import {
   Textarea,
 } from '@tangle-network/blueprint-ui/components';
 import { cn } from '@tangle-network/blueprint-ui';
-import { encodeAbiParameters, formatUnits } from 'viem';
+import { encodeAbiParameters, formatUnits, isAddress } from 'viem';
 import { useAccount, useBalance, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import {
   createChatSession,
@@ -171,12 +173,6 @@ function formatDate(value: number): string {
   return new Date(value * 1000).toLocaleString();
 }
 
-function shortAddress(value: string): string {
-  if (!value) return 'n/a';
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
-
 function previewToken(value: string): string {
   if (!value) return 'not set';
   if (value.length <= 10) return value;
@@ -243,6 +239,38 @@ function isWizardStep(value: string | null): value is `${WizardStep}` {
   return value === '1' || value === '2' || value === '3';
 }
 
+function parseRpcHexToBigint(value: unknown): bigint | null {
+  if (typeof value !== 'string') return null;
+  if (!/^0x[0-9a-fA-F]+$/.test(value)) return null;
+  try {
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+}
+
+async function jsonRpcCall<T>(rpcUrl: string, method: string, params: unknown[] = []): Promise<T> {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: Math.floor(Math.random() * 1_000_000_000),
+      method,
+      params,
+    }),
+  });
+
+  const payload = (await response.json()) as { result?: T; error?: { code?: number; message?: string } };
+  if (!response.ok) {
+    throw new Error(`RPC ${method} failed with HTTP ${response.status}`);
+  }
+  if (payload.error) {
+    throw new Error(payload.error.message || `RPC ${method} failed`);
+  }
+  return payload.result as T;
+}
+
 function InstanceRuntimePanel() {
   const [token, setToken] = useState('');
   const [tokenInput, setTokenInput] = useState('');
@@ -301,6 +329,7 @@ function InstanceRuntimePanel() {
     chainId,
   });
   const [walletBalanceRpcHex, setWalletBalanceRpcHex] = useState<string | null>(null);
+  const [walletBalanceTargetRpcHex, setWalletBalanceTargetRpcHex] = useState<string | null>(null);
   const [isWalletBalanceRpcLoading, setIsWalletBalanceRpcLoading] = useState(false);
   const isWrongChain = isWalletConnected && chainId !== TARGET_CHAIN_ID;
   const {
@@ -413,7 +442,19 @@ function InstanceRuntimePanel() {
       return false;
     }
     try {
+      selectedChainIdStore.set(TARGET_CHAIN_ID);
       await forceWalletToTargetChain();
+      const contractAddress = import.meta.env.VITE_TANGLE_CONTRACT?.trim();
+      if (contractAddress && isAddress(contractAddress)) {
+        const code = await jsonRpcCall<string>(TARGET_RPC_URL, 'eth_getCode', [contractAddress, 'latest']);
+        if (code === '0x') {
+          setNotice({
+            tone: 'error',
+            text: `RPC ${TARGET_RPC_URL} is reachable but has no contract code at ${contractAddress}. Check deploy-local RPC host/port.`,
+          });
+          return false;
+        }
+      }
       return true;
     } catch (error) {
       setNotice({
@@ -426,14 +467,15 @@ function InstanceRuntimePanel() {
 
   const copyWalletAddress = useCallback(async () => {
     if (!connectedWallet) return;
-    try {
-      await navigator.clipboard.writeText(connectedWallet);
-      setWalletCopied(true);
-      setTimeout(() => setWalletCopied(false), 1400);
-    } catch {
-      // Clipboard failures are non-fatal; keep UI unchanged.
-    }
+    const copied = await copyText(connectedWallet);
+    if (!copied) return;
+    setWalletCopied(true);
+    setTimeout(() => setWalletCopied(false), 1400);
   }, [connectedWallet]);
+
+  useEffect(() => {
+    selectedChainIdStore.set(TARGET_CHAIN_ID);
+  }, []);
 
   useEffect(() => {
     const saved = loadSavedToken();
@@ -519,6 +561,7 @@ function InstanceRuntimePanel() {
       if (!isWalletConnected || !connectedWallet) {
         if (!cancelled) {
           setWalletBalanceRpcHex(null);
+          setWalletBalanceTargetRpcHex(null);
           setIsWalletBalanceRpcLoading(false);
         }
         return;
@@ -527,24 +570,33 @@ function InstanceRuntimePanel() {
       if (!ethereum) {
         if (!cancelled) {
           setWalletBalanceRpcHex(null);
+          setWalletBalanceTargetRpcHex(null);
           setIsWalletBalanceRpcLoading(false);
         }
-        return;
       }
       if (!cancelled) {
         setIsWalletBalanceRpcLoading(true);
       }
       try {
-        const value = await ethereum.request({
-          method: 'eth_getBalance',
-          params: [connectedWallet, 'latest'],
-        });
-        if (!cancelled && typeof value === 'string') {
-          setWalletBalanceRpcHex(value);
+        let walletRpcHex: string | null = null;
+        if (ethereum) {
+          try {
+            const value = await ethereum.request({
+              method: 'eth_getBalance',
+              params: [connectedWallet, 'latest'],
+            });
+            if (typeof value === 'string') {
+              walletRpcHex = value;
+            }
+          } catch {
+            walletRpcHex = null;
+          }
         }
-      } catch {
+
+        const targetRpcHex = await jsonRpcCall<string>(TARGET_RPC_URL, 'eth_getBalance', [connectedWallet, 'latest']);
         if (!cancelled) {
-          setWalletBalanceRpcHex(null);
+          setWalletBalanceRpcHex(walletRpcHex);
+          setWalletBalanceTargetRpcHex(typeof targetRpcHex === 'string' ? targetRpcHex : null);
         }
       } finally {
         if (!cancelled) {
@@ -560,6 +612,7 @@ function InstanceRuntimePanel() {
       }, 15_000);
     } else if (walletBalance && !cancelled) {
       setWalletBalanceRpcHex(null);
+      setWalletBalanceTargetRpcHex(null);
       setIsWalletBalanceRpcLoading(false);
     }
 
@@ -1075,15 +1128,24 @@ function InstanceRuntimePanel() {
     ? resolveServiceId(selectedInstance.executionTarget === 'tee' ? 'tee' : 'standard')
     : null;
   const lifecycleTxBusy = txStatus === 'signing' || txStatus === 'pending' || isSwitchingChain;
-  const walletLabel = isWalletConnected ? shortAddress(connectedWallet ?? '') : 'Wallet Disconnected';
-  const fallbackWalletBalanceLabel = walletBalanceRpcHex
-    ? `${Number.parseFloat(formatUnits(BigInt(walletBalanceRpcHex), 18)).toFixed(4)} ${TARGET_CURRENCY_SYMBOL}`
-    : null;
+  const walletLabel = isWalletConnected ? truncateAddress(connectedWallet) : 'Wallet Disconnected';
+  const walletProviderBalanceWei = parseRpcHexToBigint(walletBalanceRpcHex);
+  const targetRpcBalanceWei = parseRpcHexToBigint(walletBalanceTargetRpcHex);
+  const walletProviderBalanceLabel =
+    walletProviderBalanceWei !== null
+      ? `${Number.parseFloat(formatUnits(walletProviderBalanceWei, 18)).toFixed(4)} ${TARGET_CURRENCY_SYMBOL}`
+      : null;
+  const targetRpcBalanceLabel =
+    targetRpcBalanceWei !== null
+      ? `${Number.parseFloat(formatUnits(targetRpcBalanceWei, 18)).toFixed(4)} ${TARGET_CURRENCY_SYMBOL}`
+      : null;
   const walletBalanceLabel =
     isWalletConnected && walletBalance
       ? `${Number.parseFloat(formatUnits(walletBalance.value, walletBalance.decimals)).toFixed(4)} ${walletBalance.symbol}`
-      : fallbackWalletBalanceLabel
-        ? fallbackWalletBalanceLabel
+      : targetRpcBalanceLabel
+        ? targetRpcBalanceLabel
+        : walletProviderBalanceLabel
+          ? walletProviderBalanceLabel
         : isWalletBalanceLoading || isWalletBalanceRpcLoading
         ? 'Loading…'
         : 'n/a';
@@ -1122,9 +1184,9 @@ function InstanceRuntimePanel() {
 
   return (
     <div className="min-h-screen claw-app-bg text-claw-elements-textPrimary">
-      <AnimatedPage className="mx-auto max-w-6xl px-4 pb-8 pt-4 sm:px-6 space-y-4">
-        <header className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
+      <AnimatedPage className="mx-auto max-w-6xl px-4 pb-8 pt-3 sm:px-6 space-y-3">
+        <header className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="font-display text-lg leading-tight">Claw Provisioning Console</p>
               <p className="text-xs text-claw-elements-textTertiary">Build {UI_BUILD_MARKER.slice(0, 19)}</p>
@@ -1140,7 +1202,7 @@ function InstanceRuntimePanel() {
                   aria-expanded={walletMenuOpen}
                   aria-controls="wallet-menu"
                   onClick={() => setWalletMenuOpen((current) => !current)}
-                  className="h-9 rounded-lg border border-claw-elements-dividerColor bg-claw-elements-background-depth-2/80 px-3 text-xs text-claw-elements-textPrimary flex items-center gap-2 hover:bg-claw-elements-item-backgroundHover"
+                  className="h-8 rounded-lg border border-claw-elements-dividerColor bg-claw-elements-background-depth-2/80 px-2.5 text-[11px] text-claw-elements-textPrimary flex items-center gap-2 hover:bg-claw-elements-item-backgroundHover"
                 >
                   <span className="i-ph:wallet text-sm claw-text-accent" aria-hidden="true" />
                   <span>{walletLabel}</span>
@@ -1176,7 +1238,12 @@ function InstanceRuntimePanel() {
                     </div>
                     {walletBalanceError ? (
                       <p className="text-[11px] claw-text-warning" role="none">
-                        Balance RPC fallback active (public RPC query failed).
+                        Wallet RPC fallback active.
+                      </p>
+                    ) : null}
+                    {walletBalanceTargetRpcHex ? (
+                      <p className="text-[11px] text-claw-elements-textTertiary" role="none">
+                        Target RPC balance check active ({TARGET_RPC_URL})
                       </p>
                     ) : null}
                     {isWrongChain ? (
@@ -1224,15 +1291,15 @@ function InstanceRuntimePanel() {
             )}
           </div>
 
-          <div className="flex items-center justify-center">
-            <div className="inline-flex rounded-xl border border-claw-elements-dividerColor bg-claw-elements-background-depth-2/70 p-1">
+          <div className="flex items-center justify-start">
+            <div className="inline-flex rounded-lg border border-claw-elements-dividerColor bg-claw-elements-background-depth-2/70 p-0.5">
               {(['launch', 'instances', 'workspace'] as SurfaceTab[]).map((id) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setSurfaceTab(id)}
                   className={cn(
-                    'h-8 rounded-lg px-4 text-xs font-medium capitalize transition-colors',
+                    'h-7 rounded-md px-3 text-[11px] font-medium capitalize transition-colors',
                     surfaceTab === id
                       ? 'bg-claw-elements-item-backgroundActive text-claw-elements-textPrimary'
                       : 'text-claw-elements-textSecondary hover:bg-claw-elements-item-backgroundHover',
@@ -1246,17 +1313,17 @@ function InstanceRuntimePanel() {
         </header>
 
         {notice ? (
-          <div className="fixed right-4 top-4 z-50 w-[min(92vw,560px)] pointer-events-none">
+          <div className="sticky top-2 z-30 w-full">
             <div
               className={cn(
-                'rounded-lg border px-3 py-2.5 text-sm shadow-[0_10px_20px_rgba(2,6,23,0.24)] pointer-events-auto',
+                'mx-auto max-w-3xl rounded-lg border px-3 py-2 text-sm shadow-[0_6px_14px_rgba(2,6,23,0.16)]',
                 toneClasses(notice.tone),
               )}
               role={notice.tone === 'error' ? 'alert' : 'status'}
               aria-live="polite"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p>{notice.text}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 flex-1">{notice.text}</p>
                 <div className="flex items-center gap-2">
                   {pendingSessionDelete ? (
                     <Button size="sm" variant="secondary" onClick={undoPendingSessionDelete}>
@@ -1331,7 +1398,7 @@ function InstanceRuntimePanel() {
                     <CardDescription>Complete profile, access, and submit.</CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 min-h-[560px]">
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
@@ -1503,7 +1570,7 @@ function InstanceRuntimePanel() {
 
                   {wizardStep === 2 ? (
                     <div className="wizard-step-shell">
-                      <div className="wizard-step-body space-y-3">
+                      <div className="wizard-step-body space-y-4">
                         <div className="rounded-xl border border-claw-elements-dividerColor px-3 py-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
@@ -1543,10 +1610,10 @@ function InstanceRuntimePanel() {
 
                         <div className="rounded-xl border border-claw-elements-dividerColor px-3 py-3 space-y-2">
                           <div className="flex items-center justify-between gap-2">
-                            <label htmlFor="owner_api_token_wizard" className="text-xs text-claw-elements-textTertiary">Owner API Token</label>
+                            <label htmlFor="owner_api_token_wizard" className="text-xs text-claw-elements-textTertiary">Operator Bearer Token</label>
                             <Badge variant={hasToken ? 'success' : 'amber'}>{hasToken ? 'Saved' : 'Missing'}</Badge>
                           </div>
-                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <Input
                               type="password"
                               id="owner_api_token_wizard"
@@ -1558,10 +1625,12 @@ function InstanceRuntimePanel() {
                               placeholder="oclw_…"
                             />
                             <Button size="sm" onClick={onSaveToken}>Save Token</Button>
+                            <Button size="sm" variant="ghost" onClick={onUseDemoToken}>Use Local Dev Token</Button>
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <Button size="sm" variant="ghost" onClick={onUseDemoToken}>Use Local Token</Button>
-                            <p className="text-xs text-claw-elements-textTertiary">Current {previewToken(tokenInput.trim())}</p>
+                            <p className="text-xs text-claw-elements-textTertiary">
+                              Saved {previewToken(token)} · Draft {previewToken(tokenInput.trim())}
+                            </p>
                           </div>
                         </div>
                       </div>

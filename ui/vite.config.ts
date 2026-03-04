@@ -3,10 +3,13 @@ import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import path from 'node:path';
 
+const buildMarker = process.env.UI_BUILD_MARKER ?? process.env.GITHUB_SHA?.slice(0, 12) ?? 'dev-local';
+
 export default defineConfig({
   plugins: [UnoCSS(), react()],
   define: {
     global: 'globalThis',
+    UI_BUILD_MARKER: JSON.stringify(buildMarker),
   },
   build: {
     outDir: 'dist',
@@ -28,6 +31,7 @@ export default defineConfig({
     dedupe: [
       'react',
       'react-dom',
+      '@tanstack/react-query',
       'wagmi',
       'viem',
       '@nanostores/react',
@@ -40,6 +44,7 @@ export default defineConfig({
     ],
     alias: {
       '~': path.resolve(__dirname, 'src'),
+      '@tanstack/react-query': path.resolve(__dirname, 'node_modules/@tanstack/react-query'),
     },
   },
 });

@@ -21,12 +21,12 @@ pnpm run build:embedded
 
 ## UX contract
 
-Default path is one-click:
+Primary IA is tabbed and progressive:
 
-1. Save bearer token
-2. Pick instance
-3. Start setup
-4. Use terminal/chat
+1. `Provision` tab: 3-step wizard (`Session` -> `Instance Profile` -> `Review + Launch`)
+2. `Instances` tab: choose the active instance
+3. `Workspace` tab: setup, terminal, chat, advanced runtime tools
+4. `Access` tab: wallet/access-token session flows
 
-Low-level controls (wallet/access-token auth variants, SSH, TEE payload tools, env overrides)
-are available under **Advanced** sections.
+Default path stays one-click inside Workspace (`Start Setup`), while low-level controls
+(SSH, TEE payload tools, env overrides) remain under **Advanced**.

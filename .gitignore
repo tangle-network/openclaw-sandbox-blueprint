@@ -2,3 +2,10 @@
 CODEX_*
 ui/node_modules
 ui/dist
+/dependencies
+/contracts/cache
+/contracts/out
+/contracts/broadcast
+/scripts/data
+/.env.local
+/ui/.env.local

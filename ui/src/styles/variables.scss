@@ -1,100 +1,94 @@
 :root,
 :root[data-theme='dark'] {
-  --claw-elements-borderColor: rgba(240, 245, 247, 0.08);
-  --claw-elements-borderColorActive: #2ec4b6;
+  --claw-elements-borderColor: rgba(230, 239, 249, 0.18);
+  --claw-elements-borderColorActive: #38bdf8;
 
-  --claw-elements-bg-depth-1: #091019;
-  --claw-elements-bg-depth-2: #101a26;
-  --claw-elements-bg-depth-3: #172434;
-  --claw-elements-bg-depth-4: #1e2f44;
+  --claw-elements-bg-depth-1: #060a13;
+  --claw-elements-bg-depth-2: #0f1725;
+  --claw-elements-bg-depth-3: #1a2740;
+  --claw-elements-bg-depth-4: #243859;
 
-  --claw-elements-textPrimary: #eef6fb;
-  --claw-elements-textSecondary: #9bb5c8;
-  --claw-elements-textTertiary: #6f899d;
+  --claw-elements-textPrimary: #fbfdff;
+  --claw-elements-textSecondary: #d3e3f4;
+  --claw-elements-textTertiary: #b5cadf;
+  --claw-elements-text-success: #22d3ee;
+  --claw-elements-text-warning: #fbbf24;
+  --claw-elements-text-danger: #fb7185;
+  --claw-elements-text-accent: #34d399;
 
-  --claw-elements-button-primary-background: rgba(46, 196, 182, 0.18);
-  --claw-elements-button-primary-backgroundHover: rgba(46, 196, 182, 0.3);
-  --claw-elements-button-primary-text: #9ef1e8;
+  --claw-elements-button-primary-background: rgba(16, 185, 129, 0.26);
+  --claw-elements-button-primary-backgroundHover: rgba(16, 185, 129, 0.4);
+  --claw-elements-button-primary-text: #f7fbff;
 
-  --claw-elements-button-secondary-background: rgba(238, 246, 251, 0.08);
-  --claw-elements-button-secondary-backgroundHover: rgba(238, 246, 251, 0.14);
-  --claw-elements-button-secondary-text: #eef6fb;
+  --claw-elements-button-secondary-background: rgba(226, 236, 248, 0.16);
+  --claw-elements-button-secondary-backgroundHover: rgba(226, 236, 248, 0.26);
+  --claw-elements-button-secondary-text: #f7fbff;
 
-  --claw-elements-button-danger-background: rgba(255, 77, 79, 0.16);
-  --claw-elements-button-danger-backgroundHover: rgba(255, 77, 79, 0.26);
-  --claw-elements-button-danger-text: #ff9fa0;
+  --claw-elements-button-danger-background: rgba(251, 113, 133, 0.22);
+  --claw-elements-button-danger-backgroundHover: rgba(251, 113, 133, 0.32);
+  --claw-elements-button-danger-text: #ffe4ea;
 
-  --claw-elements-icon-success: #2ec4b6;
-  --claw-elements-icon-error: #ff6b6f;
-  --claw-elements-icon-warning: #ffd166;
-  --claw-elements-icon-primary: #eef6fb;
-  --claw-elements-icon-secondary: #8ba5ba;
+  --claw-elements-icon-success: #22d3ee;
+  --claw-elements-icon-error: #fb7185;
+  --claw-elements-icon-warning: #fbbf24;
+  --claw-elements-icon-primary: #f7fbff;
+  --claw-elements-icon-secondary: #b9cadf;
 
-  --claw-elements-dividerColor: rgba(238, 246, 251, 0.08);
-  --claw-elements-item-backgroundHover: rgba(238, 246, 251, 0.04);
-  --claw-elements-item-backgroundActive: rgba(238, 246, 251, 0.08);
-  --claw-elements-focus: #2ec4b6;
+  --claw-elements-dividerColor: rgba(226, 236, 248, 0.22);
+  --claw-elements-item-backgroundHover: rgba(226, 236, 248, 0.1);
+  --claw-elements-item-backgroundActive: rgba(226, 236, 248, 0.18);
+  --claw-elements-focus: #34d399;
 
-  --glass-bg: rgba(16, 26, 38, 0.7);
-  --glass-bg-strong: rgba(16, 26, 38, 0.82);
-  --glass-border: rgba(238, 246, 251, 0.1);
-  --glass-border-hover: rgba(238, 246, 251, 0.2);
+  --glass-bg: rgba(11, 19, 31, 0.92);
+  --glass-bg-strong: rgba(8, 14, 25, 0.95);
+  --glass-border: rgba(197, 216, 237, 0.24);
+  --glass-border-hover: rgba(197, 216, 237, 0.36);
 
-  --mesh-cyan: rgba(46, 196, 182, 0.12);
-  --mesh-blue: rgba(64, 154, 255, 0.1);
-  --mesh-amber: rgba(255, 209, 102, 0.08);
-
-  --header-height: 68px;
 }
 
 :root[data-theme='light'] {
-  --claw-elements-borderColor: rgba(9, 16, 25, 0.1);
+  --claw-elements-borderColor: rgba(17, 24, 39, 0.22);
   --claw-elements-borderColorActive: #0f766e;
 
-  --claw-elements-bg-depth-1: #f4f8fb;
-  --claw-elements-bg-depth-2: #eaf1f7;
-  --claw-elements-bg-depth-3: #dae6f1;
-  --claw-elements-bg-depth-4: #cad9e8;
+  --claw-elements-bg-depth-1: #f7f8fb;
+  --claw-elements-bg-depth-2: #edf1f8;
+  --claw-elements-bg-depth-3: #dee6f4;
+  --claw-elements-bg-depth-4: #c9d8ee;
 
-  --claw-elements-textPrimary: #0f1720;
-  --claw-elements-textSecondary: #334a5c;
-  --claw-elements-textTertiary: #5f7689;
+  --claw-elements-textPrimary: #0b1329;
+  --claw-elements-textSecondary: #1a2943;
+  --claw-elements-textTertiary: #334766;
+  --claw-elements-text-success: #0f766e;
+  --claw-elements-text-warning: #92400e;
+  --claw-elements-text-danger: #be123c;
+  --claw-elements-text-accent: #115e59;
 
   --claw-elements-button-primary-background: rgba(15, 118, 110, 0.16);
   --claw-elements-button-primary-backgroundHover: rgba(15, 118, 110, 0.24);
-  --claw-elements-button-primary-text: #0f766e;
+  --claw-elements-button-primary-text: #0b3f3b;
 
-  --claw-elements-button-secondary-background: rgba(9, 16, 25, 0.07);
-  --claw-elements-button-secondary-backgroundHover: rgba(9, 16, 25, 0.12);
-  --claw-elements-button-secondary-text: #0f1720;
+  --claw-elements-button-secondary-background: rgba(15, 23, 42, 0.14);
+  --claw-elements-button-secondary-backgroundHover: rgba(15, 23, 42, 0.2);
+  --claw-elements-button-secondary-text: #0f172a;
 
-  --claw-elements-button-danger-background: rgba(185, 28, 28, 0.1);
-  --claw-elements-button-danger-backgroundHover: rgba(185, 28, 28, 0.2);
-  --claw-elements-button-danger-text: #991b1b;
+  --claw-elements-button-danger-background: rgba(225, 29, 72, 0.12);
+  --claw-elements-button-danger-backgroundHover: rgba(225, 29, 72, 0.2);
+  --claw-elements-button-danger-text: #9f1239;
 
-  --claw-elements-icon-success: #0f766e;
-  --claw-elements-icon-error: #b91c1c;
+  --claw-elements-icon-success: #2563eb;
+  --claw-elements-icon-error: #be123c;
   --claw-elements-icon-warning: #b45309;
-  --claw-elements-icon-primary: #0f1720;
-  --claw-elements-icon-secondary: #5f7689;
+  --claw-elements-icon-primary: #0f172a;
+  --claw-elements-icon-secondary: #334155;
 
-  --claw-elements-dividerColor: rgba(9, 16, 25, 0.08);
-  --claw-elements-item-backgroundHover: rgba(9, 16, 25, 0.04);
-  --claw-elements-item-backgroundActive: rgba(9, 16, 25, 0.08);
+  --claw-elements-dividerColor: rgba(30, 41, 59, 0.22);
+  --claw-elements-item-backgroundHover: rgba(37, 99, 235, 0.08);
+  --claw-elements-item-backgroundActive: rgba(37, 99, 235, 0.14);
   --claw-elements-focus: #0f766e;
 
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-bg-strong: rgba(255, 255, 255, 0.9);
-  --glass-border: rgba(9, 16, 25, 0.12);
-  --glass-border-hover: rgba(9, 16, 25, 0.2);
+  --glass-bg: rgba(255, 255, 255, 0.97);
+  --glass-bg-strong: rgba(255, 255, 255, 0.98);
+  --glass-border: rgba(30, 41, 59, 0.2);
+  --glass-border-hover: rgba(15, 23, 42, 0.25);
 
-  --mesh-cyan: rgba(15, 118, 110, 0.08);
-  --mesh-blue: rgba(30, 64, 175, 0.07);
-  --mesh-amber: rgba(217, 119, 6, 0.05);
-}
-
-@media (max-width: 767px) {
-  :root {
-    --header-height: 58px;
-  }
 }
