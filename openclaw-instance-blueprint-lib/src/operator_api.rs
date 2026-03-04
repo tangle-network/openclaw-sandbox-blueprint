@@ -416,3 +416,283 @@ pub fn operator_api_addr_from_env() -> Result<Option<SocketAddr>, String> {
         .map(Some)
         .map_err(|e| format!("invalid OPENCLAW_OPERATOR_HTTP_ADDR `{addr}`: {e}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::{InstanceError, Result as InstanceResult};
+    use crate::state::{
+        ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, RuntimeBinding, UiAccess,
+        UiAuthMode,
+    };
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct TestAdapter {
+        records: Mutex<BTreeMap<String, InstanceRecord>>,
+        setup_env_by_instance: Mutex<BTreeMap<String, BTreeMap<String, String>>>,
+    }
+
+    impl TestAdapter {
+        fn with_instance(instance: InstanceRecord) -> Arc<Self> {
+            let mut map = BTreeMap::new();
+            map.insert(instance.id.clone(), instance);
+            Arc::new(Self {
+                records: Mutex::new(map),
+                setup_env_by_instance: Mutex::new(BTreeMap::new()),
+            })
+        }
+
+        fn saved_setup_env(&self, instance_id: &str) -> Option<BTreeMap<String, String>> {
+            self.setup_env_by_instance
+                .lock()
+                .ok()
+                .and_then(|all| all.get(instance_id).cloned())
+        }
+    }
+
+    impl InstanceRuntimeAdapter for TestAdapter {
+        fn create_instance(
+            &self,
+            _input: crate::runtime_adapter::RuntimeCreateInput,
+        ) -> InstanceResult<InstanceRecord> {
+            Err(InstanceError::Store(
+                "create_instance is not used in operator api tests".to_string(),
+            ))
+        }
+
+        fn get_instance(&self, instance_id: &str) -> InstanceResult<Option<InstanceRecord>> {
+            Ok(self
+                .records
+                .lock()
+                .map_err(|e| InstanceError::Store(format!("records lock poisoned: {e}")))?
+                .get(instance_id)
+                .cloned())
+        }
+
+        fn save_instance(&self, record: InstanceRecord) -> InstanceResult<InstanceRecord> {
+            self.records
+                .lock()
+                .map_err(|e| InstanceError::Store(format!("records lock poisoned: {e}")))?
+                .insert(record.id.clone(), record.clone());
+            Ok(record)
+        }
+
+        fn list_instances(&self) -> InstanceResult<Vec<InstanceRecord>> {
+            Ok(self
+                .records
+                .lock()
+                .map_err(|e| InstanceError::Store(format!("records lock poisoned: {e}")))?
+                .values()
+                .cloned()
+                .collect())
+        }
+
+        fn trigger_setup(
+            &self,
+            record: &mut InstanceRecord,
+            setup_env: &BTreeMap<String, String>,
+        ) -> InstanceResult<()> {
+            self.setup_env_by_instance
+                .lock()
+                .map_err(|e| InstanceError::Store(format!("setup_env lock poisoned: {e}")))?
+                .insert(record.id.clone(), setup_env.clone());
+            record.runtime.setup_status = Some("running".to_string());
+            record.runtime.last_error = None;
+            Ok(())
+        }
+    }
+
+    fn test_instance(id: &str, owner: &str) -> InstanceRecord {
+        InstanceRecord {
+            id: id.to_string(),
+            name: "test".to_string(),
+            template_pack_id: "ops".to_string(),
+            claw_variant: ClawVariant::Openclaw,
+            config_json: "{}".to_string(),
+            owner: owner.to_string(),
+            ui_access: UiAccess {
+                public_url: Some("https://example.test/ui".to_string()),
+                auth_mode: UiAuthMode::AccessToken,
+                ..UiAccess::default()
+            },
+            runtime: RuntimeBinding {
+                backend: "docker".to_string(),
+                ui_local_url: Some("http://127.0.0.1:18080".to_string()),
+                ui_auth_scheme: Some("bearer".to_string()),
+                ui_bearer_token: Some("instance-ui-token".to_string()),
+                setup_command: Some("echo ready".to_string()),
+                setup_status: Some("pending".to_string()),
+                container_status: Some("running".to_string()),
+                ..RuntimeBinding::default()
+            },
+            execution_target: ExecutionTarget::Standard,
+            state: InstanceState::Running,
+            created_at: 10,
+            updated_at: 10,
+        }
+    }
+
+    fn bearer_headers(token: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        let raw = format!("Bearer {token}");
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            raw.parse().expect("valid auth header"),
+        );
+        headers
+    }
+
+    #[tokio::test]
+    async fn instance_access_rejects_operator_tokens() {
+        let adapter = TestAdapter::with_instance(test_instance(
+            "inst-operator-denied",
+            "0x0000000000000000000000000000000000000001",
+        ));
+        let state = ApiState {
+            adapter,
+            auth: AuthService::new(AuthConfig {
+                challenge_ttl_secs: 60,
+                session_ttl_secs: 300,
+                access_token: Some("user-access-token".to_string()),
+                operator_api_token: Some("operator-token".to_string()),
+            }),
+        };
+
+        let result = instance_access(
+            State(state),
+            bearer_headers("operator-token"),
+            Path("inst-operator-denied".to_string()),
+        )
+        .await;
+        match result {
+            Err(ApiError::Forbidden(message)) => {
+                assert!(message.contains("operator tokens are not allowed"));
+            }
+            other => panic!("expected forbidden error, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn instance_access_returns_scoped_owner_ui_token() {
+        let instance = test_instance(
+            "inst-access-ok",
+            "0x0000000000000000000000000000000000000001",
+        );
+        let adapter = TestAdapter::with_instance(instance.clone());
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: Some("user-access-token".to_string()),
+            operator_api_token: Some("operator-token".to_string()),
+        });
+        let session = auth
+            .create_access_token_session(&instance, "user-access-token")
+            .expect("session");
+        let state = ApiState { adapter, auth };
+
+        let result = instance_access(
+            State(state),
+            bearer_headers(&session.token),
+            Path("inst-access-ok".to_string()),
+        )
+        .await
+        .expect("access response");
+        let payload = result.0;
+        assert_eq!(payload.instance_id, "inst-access-ok");
+        assert_eq!(payload.auth_scheme, "bearer");
+        assert_eq!(payload.bearer_token, "instance-ui-token");
+        assert_eq!(
+            payload.ui_local_url.as_deref(),
+            Some("http://127.0.0.1:18080")
+        );
+        assert_eq!(
+            payload.public_url.as_deref(),
+            Some("https://example.test/ui")
+        );
+    }
+
+    #[tokio::test]
+    async fn start_setup_persists_runtime_status_and_env() {
+        let instance = test_instance("inst-setup", "0x0000000000000000000000000000000000000001");
+        let adapter = TestAdapter::with_instance(instance.clone());
+        let adapter_dyn: Arc<dyn InstanceRuntimeAdapter> = adapter.clone();
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: Some("user-access-token".to_string()),
+            operator_api_token: Some("operator-token".to_string()),
+        });
+        let session = auth
+            .create_access_token_session(&instance, "user-access-token")
+            .expect("session");
+        let state = ApiState {
+            adapter: adapter_dyn,
+            auth,
+        };
+
+        let mut env = BTreeMap::new();
+        env.insert("OPENAI_API_KEY".to_string(), "sk-test".to_string());
+        env.insert(
+            "CLAUDE_CODE_OAUTH_TOKEN".to_string(),
+            "oauth-test".to_string(),
+        );
+
+        let result = start_instance_setup(
+            State(state),
+            bearer_headers(&session.token),
+            Path("inst-setup".to_string()),
+            Json(StartSetupRequest { env: env.clone() }),
+        )
+        .await
+        .expect("setup response");
+
+        let payload = result.0;
+        assert_eq!(payload.id, "inst-setup");
+        assert_eq!(payload.runtime.setup_status.as_deref(), Some("running"));
+        assert!(payload.updated_at >= 10);
+
+        let persisted_env = adapter
+            .saved_setup_env("inst-setup")
+            .expect("saved setup env");
+        assert_eq!(persisted_env, env);
+    }
+
+    #[tokio::test]
+    async fn instance_access_rejects_mismatched_scoped_session() {
+        let instance_a = test_instance("inst-a", "0x0000000000000000000000000000000000000001");
+        let instance_b = test_instance("inst-b", "0x0000000000000000000000000000000000000001");
+        let adapter = Arc::new(TestAdapter::default());
+        adapter
+            .save_instance(instance_a.clone())
+            .expect("save instance a");
+        adapter.save_instance(instance_b).expect("save instance b");
+
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: Some("user-access-token".to_string()),
+            operator_api_token: Some("operator-token".to_string()),
+        });
+        let session = auth
+            .create_access_token_session(&instance_a, "user-access-token")
+            .expect("session");
+        let state = ApiState {
+            adapter: adapter as Arc<dyn InstanceRuntimeAdapter>,
+            auth,
+        };
+
+        let result = instance_access(
+            State(state),
+            bearer_headers(&session.token),
+            Path("inst-b".to_string()),
+        )
+        .await;
+        match result {
+            Err(ApiError::Forbidden(message)) => {
+                assert!(message.contains("session is not authorized for this instance"));
+            }
+            other => panic!("expected forbidden error, got: {other:?}"),
+        }
+    }
+}
