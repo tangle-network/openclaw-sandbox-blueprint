@@ -20,6 +20,7 @@ use openclaw_tee_instance_blueprint_lib::{
 #[allow(clippy::result_large_err)]
 async fn main() -> Result<(), blueprint_sdk::Error> {
     setup_log();
+    let test_mode = std::env::args().any(|arg| arg == "--test-mode");
     init_tee_mode();
     init_runtime_adapter_from_env().map_err(|e| blueprint_sdk::Error::Other(e.to_string()))?;
 
@@ -79,7 +80,15 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         Ok(()) => Ok(()),
         Err(e) => {
             error!("Runner failed: {e:?}");
-            Err(blueprint_sdk::Error::Other(e.to_string()))
+            if test_mode {
+                warn!(
+                    "Runner failed in --test-mode; keeping operator API alive for local debugging."
+                );
+                std::future::pending::<()>().await;
+                Ok(())
+            } else {
+                Err(blueprint_sdk::Error::Other(e.to_string()))
+            }
         }
     };
     let _ = operator_shutdown_tx.send(());

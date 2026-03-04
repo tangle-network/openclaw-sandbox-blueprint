@@ -1705,6 +1705,7 @@ mod tests {
                 session_ttl_secs: 300,
                 access_token: Some("user-access-token".to_string()),
                 operator_api_token: Some("operator-token".to_string()),
+                allow_wallet_signature_access_token_fallback: false,
             }),
             sessions: Arc::new(LiveSessionStore::default()),
         };
@@ -1735,6 +1736,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: Some("user-access-token".to_string()),
             operator_api_token: Some("operator-token".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         });
         let session = auth
             .create_access_token_session(&instance, "user-access-token")
@@ -1776,6 +1778,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: Some("user-access-token".to_string()),
             operator_api_token: Some("operator-token".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         });
         let session = auth
             .create_access_token_session(&instance, "user-access-token")
@@ -1828,6 +1831,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: Some("user-access-token".to_string()),
             operator_api_token: Some("operator-token".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         });
         let session = auth
             .create_access_token_session(&instance_a, "user-access-token")
@@ -1868,6 +1872,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: Some("user-access-token".to_string()),
             operator_api_token: Some("operator-token".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         });
         let session = auth
             .create_access_token_session(&instance, "user-access-token")
@@ -1932,6 +1937,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: Some("user-access-token".to_string()),
             operator_api_token: Some("operator-token".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         });
         let session = auth
             .create_access_token_session(&instance, "user-access-token")
