@@ -26,14 +26,31 @@ TEE policy for this repo:
   - runtime now uses a terminal-first long-lived profile for hosted instances
     (no native NanoClaw web UI assumption).
 
+## Verified UI Build Truths (March 4, 2026)
+
+- Source UI lives in `ui/` (React + shared `blueprint-ui`/`agent-ui`).
+- Operator-served assets live in `control-plane-ui/` and are generated output,
+  not hand-edited source.
+- Always run `cd ui && pnpm run build:embedded` after UI changes.
+- Operator API must serve:
+  - `/` + `/app.js` + `/styles.css`
+  - `/assets/*` for split chunks.
+- Do not force single-file bundles just to avoid serving `/assets/*`; that
+  regresses first-load performance.
+
 ## Do
 
 - Validate behavior against real images, not only placeholder images.
 - Fail fast on runtime prerequisites (for example, missing IronClaw auth env).
+- Keep default UX one-click and move low-level controls into explicit
+  "Advanced" sections.
 - Keep synthetic CI and real-image CI separate:
   - synthetic lane for fast deterministic checks
   - real-image lane for weekly/manual production-adjacent proof
 - Record evidence with exact commands and outcomes in PR descriptions.
+- For UI changes, record both:
+  - `pnpm run build:embedded`
+  - `cargo test -p openclaw-instance-blueprint-lib`
 
 ## Do Not
 
@@ -43,6 +60,8 @@ TEE policy for this repo:
   verifying network reachability and auth startup behavior.
 - Do not run one-shot variant entrypoints directly in hosted mode without an
   explicit hosted command profile.
+- Do not ship hand-maintained UI logic in `control-plane-ui/`; it must be
+  generated from `ui/`.
 
 ## Verified Flows
 
