@@ -4,11 +4,11 @@ use std::collections::BTreeMap;
 use std::process::Command;
 use std::time::Duration;
 
-use openclaw_instance_blueprint_lib::operator_api::run_operator_api;
-use openclaw_instance_blueprint_lib::runtime_adapter::{
+use openclaw_sandbox_blueprint_lib::operator_api::run_operator_api;
+use openclaw_sandbox_blueprint_lib::runtime_adapter::{
     RuntimeCreateInput, init_runtime_adapter_from_env, instance_runtime_adapter,
 };
-use openclaw_instance_blueprint_lib::state::{
+use openclaw_sandbox_blueprint_lib::state::{
     ClawVariant, ExecutionTarget, InstanceState, UiAccess, UiAuthMode,
 };
 use serde_json::{Value, json};

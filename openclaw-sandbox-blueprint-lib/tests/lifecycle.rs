@@ -5,7 +5,7 @@
 
 use std::sync::Once;
 
-use openclaw_instance_blueprint_lib::state::{
+use openclaw_sandbox_blueprint_lib::state::{
     self, ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, RuntimeBinding, UiAccess,
 };
 

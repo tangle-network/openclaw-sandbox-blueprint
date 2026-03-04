@@ -1,11 +1,11 @@
 [package]
-name = "openclaw-tee-instance-blueprint-lib"
+name = "openclaw-tee-sandbox-blueprint-lib"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
-description = "OpenClaw TEE Instance Blueprint library"
+description = "OpenClaw TEE Sandbox Blueprint library"
 license.workspace = true
 
 [dependencies]
-openclaw-instance-blueprint-lib = { path = "../openclaw-instance-blueprint-lib" }
+openclaw-sandbox-blueprint-lib = { path = "../openclaw-sandbox-blueprint-lib" }
 blueprint-sdk = { git = "https://github.com/tangle-network/blueprint.git", branch = "main", default-features = false, features = ["std", "tangle", "tracing", "macros"] }

@@ -3,7 +3,7 @@
 //! TEE-focused variant of the OpenClaw instance blueprint.
 //! Reuses the instance lifecycle router and forces execution target to `tee`.
 
-pub use openclaw_instance_blueprint_lib::*;
+pub use openclaw_sandbox_blueprint_lib::*;
 
 use blueprint_sdk::Router;
 
@@ -20,5 +20,5 @@ pub fn init_tee_mode() {
 /// Build the router for the TEE variant.
 pub fn tee_router() -> Router {
     init_tee_mode();
-    openclaw_instance_blueprint_lib::router()
+    openclaw_sandbox_blueprint_lib::router()
 }

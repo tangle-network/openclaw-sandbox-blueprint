@@ -26,7 +26,7 @@ Shared ingress access primitives reused from `ai-agent-sandbox-blueprint`:
 - Per-instance bearer token generation
 - Canonical+alias env binding helpers
 
-### `openclaw-instance-blueprint-lib`
+### `openclaw-sandbox-blueprint-lib`
 
 Library crate containing all business logic:
 
@@ -48,7 +48,7 @@ Library crate containing all business logic:
 - **`error.rs`** — Domain error type (`InstanceError`) with conversions to
   `String` for on-chain error reporting.
 
-### `openclaw-instance-blueprint-bin`
+### `openclaw-sandbox-blueprint-bin`
 
 Binary crate with the runner entry point:
 
@@ -56,13 +56,13 @@ Binary crate with the runner entry point:
   `TangleProducer`/`TangleConsumer`, and starts `BlueprintRunner` with the
   library's `router()`.
 
-### `openclaw-tee-instance-blueprint-lib` / `openclaw-tee-instance-blueprint-bin`
+### `openclaw-tee-sandbox-blueprint-lib` / `openclaw-tee-sandbox-blueprint-bin`
 
 TEE variant wrappers over the instance blueprint:
 
-- `openclaw-tee-instance-blueprint-lib` re-exports the base library and exposes
+- `openclaw-tee-sandbox-blueprint-lib` re-exports the base library and exposes
   `tee_router()` which forces `OPENCLAW_EXECUTION_TARGET=tee`.
-- `openclaw-tee-instance-blueprint-bin` runs the shared lifecycle router with
+- `openclaw-tee-sandbox-blueprint-bin` runs the shared lifecycle router with
   TEE execution target preconfigured.
 
 ## Jobs vs queries
@@ -124,7 +124,7 @@ Instance records are stored in a JSON file at:
 
 - `$OPENCLAW_INSTANCE_STATE_DIR/instances.json` (preferred)
 - fallback: `$OPENCLAW_STATE_DIR/instances.json` (compatibility path)
-- default: `/tmp/openclaw-instance-blueprint/instances.json`
+- default: `/tmp/openclaw-sandbox-blueprint/instances.json`
 
 The store uses `once_cell::OnceCell` for lazy initialization and
 `std::sync::Mutex` for thread safety. All writes persist to disk immediately.

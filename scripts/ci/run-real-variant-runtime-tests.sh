@@ -60,7 +60,7 @@ export OPENCLAW_DOCKER_STARTUP_STABILIZE_MS=1500
 export OPENCLAW_REAL_UI_TIMEOUT_SECS
 
 run_matrix() {
-  cargo test -p openclaw-instance-blueprint-lib docker_real_variant_runtime_matrix -- --ignored --test-threads=1
+  cargo test -p openclaw-sandbox-blueprint-lib docker_real_variant_runtime_matrix -- --ignored --test-threads=1
 }
 
 if ! run_matrix; then

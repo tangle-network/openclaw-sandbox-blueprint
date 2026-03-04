@@ -11,14 +11,14 @@ is preserved, but the implementation path is now Rust.
 | JS scaffold | Rust blueprint |
 |---|---|
 | `package.json` + `npm start` | `Cargo.toml` workspace + `cargo run` |
-| `openclaw-instance-blueprint-lib/src/jobs/lifecycleJobs.js` | `openclaw-instance-blueprint-lib/src/jobs/lifecycle.rs` |
-| `openclaw-instance-blueprint-lib/src/services/instanceService.js` | `openclaw-instance-blueprint-lib/src/state.rs` |
-| `openclaw-instance-blueprint-lib/src/runtime/mockSandboxRuntimeAdapter.js` | `openclaw-instance-blueprint-lib/src/runtime_adapter.rs` (`InstanceRuntimeAdapter` + `LocalStateRuntimeAdapter`) |
-| `openclaw-instance-blueprint-lib/src/server/createHttpService.js` | `openclaw-instance-blueprint-lib/src/operator_api.rs` + runner wiring in `openclaw-instance-blueprint-bin/src/main.rs` |
-| `openclaw-instance-blueprint-lib/src/server/bootstrap.js` | `openclaw-instance-blueprint-bin/src/main.rs` |
-| `openclaw-instance-blueprint-lib/src/config/templateLoader.js` | Template loading (planned, packs retained in config/) |
-| `openclaw-instance-blueprint-lib/bin/dev-server.js` | `cargo run --bin openclaw-instance-blueprint` |
-| `openclaw-instance-blueprint-lib/bin/smoke-test.js` | `cargo test --all` |
+| `openclaw-sandbox-blueprint-lib/src/jobs/lifecycleJobs.js` | `openclaw-sandbox-blueprint-lib/src/jobs/lifecycle.rs` |
+| `openclaw-sandbox-blueprint-lib/src/services/instanceService.js` | `openclaw-sandbox-blueprint-lib/src/state.rs` |
+| `openclaw-sandbox-blueprint-lib/src/runtime/mockSandboxRuntimeAdapter.js` | `openclaw-sandbox-blueprint-lib/src/runtime_adapter.rs` (`InstanceRuntimeAdapter` + `LocalStateRuntimeAdapter`) |
+| `openclaw-sandbox-blueprint-lib/src/server/createHttpService.js` | `openclaw-sandbox-blueprint-lib/src/operator_api.rs` + runner wiring in `openclaw-sandbox-blueprint-bin/src/main.rs` |
+| `openclaw-sandbox-blueprint-lib/src/server/bootstrap.js` | `openclaw-sandbox-blueprint-bin/src/main.rs` |
+| `openclaw-sandbox-blueprint-lib/src/config/templateLoader.js` | Template loading (planned, packs retained in config/) |
+| `openclaw-sandbox-blueprint-lib/bin/dev-server.js` | `cargo run --bin openclaw-sandbox-blueprint` |
+| `openclaw-sandbox-blueprint-lib/bin/smoke-test.js` | `cargo test --all` |
 | HTTP POST `/jobs/create-instance` | On-chain job ID 0 (`create_instance`) |
 | HTTP POST `/jobs/start-instance` | On-chain job ID 1 (`start_instance`) |
 | HTTP POST `/jobs/stop-instance` | On-chain job ID 2 (`stop_instance`) |
@@ -36,7 +36,7 @@ is preserved, but the implementation path is now Rust.
 
 ## What is removed
 
-- All JS source files in `openclaw-instance-blueprint-lib/`
+- All JS source files in `openclaw-sandbox-blueprint-lib/`
 - `package.json`
 - `InMemoryJobRunner`, `MockSandboxRuntimeAdapter`, `InstanceService`
 - Node.js HTTP server (`createHttpService.js`)

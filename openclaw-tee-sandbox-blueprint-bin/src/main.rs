@@ -1,4 +1,4 @@
-//! Blueprint runner for openclaw-tee-instance-blueprint.
+//! Blueprint runner for openclaw-tee-sandbox-blueprint.
 //!
 //! TEE-focused variant: forces `OPENCLAW_EXECUTION_TARGET=tee` and runs
 //! the shared OpenClaw instance lifecycle router.
@@ -9,10 +9,10 @@ use blueprint_sdk::runner::config::BlueprintEnvironment;
 use blueprint_sdk::runner::tangle::config::TangleConfig;
 use blueprint_sdk::tangle::{TangleConsumer, TangleProducer};
 use blueprint_sdk::{error, info, warn};
-use openclaw_tee_instance_blueprint_lib::operator_api::{
+use openclaw_tee_sandbox_blueprint_lib::operator_api::{
     operator_api_addr_from_env, run_operator_api,
 };
-use openclaw_tee_instance_blueprint_lib::{
+use openclaw_tee_sandbox_blueprint_lib::{
     init_runtime_adapter_from_env, init_tee_mode, tee_router,
 };
 
@@ -59,7 +59,7 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .service_id
         .ok_or_else(|| blueprint_sdk::Error::Other("SERVICE_ID missing".into()))?;
 
-    info!("Starting openclaw-tee-instance-blueprint for service {service_id}");
+    info!("Starting openclaw-tee-sandbox-blueprint for service {service_id}");
 
     let tangle_producer = TangleProducer::new(tangle_client.clone(), service_id);
     let tangle_consumer = TangleConsumer::new(tangle_client);
@@ -71,7 +71,7 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .producer(tangle_producer)
         .consumer(tangle_consumer)
         .with_shutdown_handler(async {
-            info!("Shutting down openclaw-tee-instance-blueprint");
+            info!("Shutting down openclaw-tee-sandbox-blueprint");
         })
         .run()
         .await;

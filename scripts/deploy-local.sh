@@ -442,8 +442,8 @@ if [[ "$BUILD_UI" == "1" ]]; then
     )
     # include_dir! does not always trigger recompilation when only embedded files
     # change; bump Rust source mtimes so rebuilt binaries always pick up fresh UI.
-    touch "$ROOT_DIR/openclaw-instance-blueprint-lib/src/operator_api.rs" \
-          "$ROOT_DIR/openclaw-tee-instance-blueprint-lib/src/lib.rs"
+    touch "$ROOT_DIR/openclaw-sandbox-blueprint-lib/src/operator_api.rs" \
+          "$ROOT_DIR/openclaw-tee-sandbox-blueprint-lib/src/lib.rs"
     echo "  Embedded UI artifacts refreshed"
 else
     echo "[8/11] Skipping embedded UI build (BUILD_UI=0)"
@@ -457,7 +457,7 @@ if [[ "$SKIP_BUILD" == "1" ]]; then
     fi
 else
     echo "  Building OpenClaw runners (includes embedded UI assets)..."
-    cargo build --release -p openclaw-instance-blueprint-bin -p openclaw-tee-instance-blueprint-bin >/dev/null
+    cargo build --release -p openclaw-sandbox-blueprint-bin -p openclaw-tee-sandbox-blueprint-bin >/dev/null
     echo "  Runner binaries built"
 fi
 
@@ -484,13 +484,13 @@ export OPENCLAW_AUTH_CHALLENGE_TTL_SECS="${OPENCLAW_AUTH_CHALLENGE_TTL_SECS:-300
 export OPENCLAW_AUTH_SESSION_TTL_SECS="${OPENCLAW_AUTH_SESSION_TTL_SECS:-21600}"
 export RUST_LOG="${RUST_LOG:-info}"
 
-if [[ ! -x "$ROOT_DIR/target/release/openclaw-instance-blueprint" ]]; then
-    echo "ERROR: missing binary $ROOT_DIR/target/release/openclaw-instance-blueprint"
+if [[ ! -x "$ROOT_DIR/target/release/openclaw-sandbox-blueprint" ]]; then
+    echo "ERROR: missing binary $ROOT_DIR/target/release/openclaw-sandbox-blueprint"
     echo "Set SKIP_BUILD=0 or build it manually."
     exit 1
 fi
-if [[ ! -x "$ROOT_DIR/target/release/openclaw-tee-instance-blueprint" ]]; then
-    echo "ERROR: missing binary $ROOT_DIR/target/release/openclaw-tee-instance-blueprint"
+if [[ ! -x "$ROOT_DIR/target/release/openclaw-tee-sandbox-blueprint" ]]; then
+    echo "ERROR: missing binary $ROOT_DIR/target/release/openclaw-tee-sandbox-blueprint"
     echo "Set SKIP_BUILD=0 or build it manually."
     exit 1
 fi
@@ -502,7 +502,7 @@ KEYSTORE_URI="$SCRIPTS_DIR/data/operator1/keystore" \
 DATA_DIR="$SCRIPTS_DIR/data/operator1/state" \
 OPENCLAW_INSTANCE_STATE_DIR="$SCRIPTS_DIR/data/operator1/state" \
 OPENCLAW_STATE_DIR="$SCRIPTS_DIR/data/operator1/state" \
-"$ROOT_DIR/target/release/openclaw-instance-blueprint" run --test-mode &
+"$ROOT_DIR/target/release/openclaw-sandbox-blueprint" run --test-mode &
 INSTANCE_OPERATOR_PID=$!
 
 OPENCLAW_OPERATOR_HTTP_ADDR="0.0.0.0:$TEE_OPERATOR_API_PORT" \
@@ -512,7 +512,7 @@ KEYSTORE_URI="$SCRIPTS_DIR/data/operator2/keystore" \
 DATA_DIR="$SCRIPTS_DIR/data/operator2/state" \
 OPENCLAW_INSTANCE_STATE_DIR="$SCRIPTS_DIR/data/operator2/state" \
 OPENCLAW_STATE_DIR="$SCRIPTS_DIR/data/operator2/state" \
-"$ROOT_DIR/target/release/openclaw-tee-instance-blueprint" run --test-mode &
+"$ROOT_DIR/target/release/openclaw-tee-sandbox-blueprint" run --test-mode &
 TEE_OPERATOR_PID=$!
 
 wait_for_http_ready "http://127.0.0.1:$OPERATOR_API_PORT/health" "200"

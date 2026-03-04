@@ -79,7 +79,7 @@ contract RegisterBlueprint is Script {
         bins[0] = Types.BlueprintBinary({
             arch: Types.BlueprintArchitecture.Amd64,
             os: Types.BlueprintOperatingSystem.Linux,
-            name: tee ? "openclaw-tee-instance-blueprint" : "openclaw-instance-blueprint",
+            name: tee ? "openclaw-tee-sandbox-blueprint" : "openclaw-sandbox-blueprint",
             sha256: bytes32(uint256(0xdeadbeef))
         });
         def.sources[0] = Types.BlueprintSource({
@@ -89,13 +89,13 @@ contract RegisterBlueprint is Script {
             native: Types.NativeSource(
                 Types.BlueprintFetcherKind.None,
                 tee
-                    ? "file:///target/release/openclaw-tee-instance-blueprint"
-                    : "file:///target/release/openclaw-instance-blueprint",
-                tee ? "./target/release/openclaw-tee-instance-blueprint" : "./target/release/openclaw-instance-blueprint"
+                    ? "file:///target/release/openclaw-tee-sandbox-blueprint"
+                    : "file:///target/release/openclaw-sandbox-blueprint",
+                tee ? "./target/release/openclaw-tee-sandbox-blueprint" : "./target/release/openclaw-sandbox-blueprint"
             ),
             testing: Types.TestingSource(
-                tee ? "openclaw-tee-instance-blueprint-bin" : "openclaw-instance-blueprint-bin",
-                tee ? "openclaw-tee-instance-blueprint" : "openclaw-instance-blueprint",
+                tee ? "openclaw-tee-sandbox-blueprint-bin" : "openclaw-sandbox-blueprint-bin",
+                tee ? "openclaw-tee-sandbox-blueprint" : "openclaw-sandbox-blueprint",
                 "."
             ),
             binaries: bins

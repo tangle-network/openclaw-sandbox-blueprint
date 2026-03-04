@@ -1,4 +1,4 @@
-//! Blueprint runner for openclaw-instance-blueprint.
+//! Blueprint runner for openclaw-sandbox-blueprint.
 //!
 //! Wires the job router, Tangle producer/consumer, and optional cron producers
 //! into a `BlueprintRunner` and starts the event loop.
@@ -9,8 +9,8 @@ use blueprint_sdk::runner::config::BlueprintEnvironment;
 use blueprint_sdk::runner::tangle::config::TangleConfig;
 use blueprint_sdk::tangle::{TangleConsumer, TangleProducer};
 use blueprint_sdk::{error, info, warn};
-use openclaw_instance_blueprint_lib::operator_api::{operator_api_addr_from_env, run_operator_api};
-use openclaw_instance_blueprint_lib::{init_runtime_adapter_from_env, router};
+use openclaw_sandbox_blueprint_lib::operator_api::{operator_api_addr_from_env, run_operator_api};
+use openclaw_sandbox_blueprint_lib::{init_runtime_adapter_from_env, router};
 
 #[tokio::main]
 #[allow(clippy::result_large_err)]
@@ -54,7 +54,7 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .service_id
         .ok_or_else(|| blueprint_sdk::Error::Other("SERVICE_ID missing".into()))?;
 
-    info!("Starting openclaw-instance-blueprint for service {service_id}");
+    info!("Starting openclaw-sandbox-blueprint for service {service_id}");
 
     let tangle_producer = TangleProducer::new(tangle_client.clone(), service_id);
     let tangle_consumer = TangleConsumer::new(tangle_client);
@@ -66,7 +66,7 @@ async fn main() -> Result<(), blueprint_sdk::Error> {
         .producer(tangle_producer)
         .consumer(tangle_consumer)
         .with_shutdown_handler(async {
-            info!("Shutting down openclaw-instance-blueprint");
+            info!("Shutting down openclaw-sandbox-blueprint");
         })
         .run()
         .await;

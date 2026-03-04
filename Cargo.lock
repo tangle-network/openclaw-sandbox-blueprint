@@ -6528,18 +6528,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
-name = "openclaw-instance-blueprint-bin"
+name = "openclaw-sandbox-blueprint-bin"
 version = "0.1.0"
 dependencies = [
  "blueprint-producers-extra",
  "blueprint-sdk",
- "openclaw-instance-blueprint-lib",
+ "openclaw-sandbox-blueprint-lib",
  "tokio",
  "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
-name = "openclaw-instance-blueprint-lib"
+name = "openclaw-sandbox-blueprint-lib"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -6560,22 +6560,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "openclaw-tee-instance-blueprint-bin"
+name = "openclaw-tee-sandbox-blueprint-bin"
 version = "0.1.0"
 dependencies = [
  "blueprint-producers-extra",
  "blueprint-sdk",
- "openclaw-tee-instance-blueprint-lib",
+ "openclaw-tee-sandbox-blueprint-lib",
  "tokio",
  "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
-name = "openclaw-tee-instance-blueprint-lib"
+name = "openclaw-tee-sandbox-blueprint-lib"
 version = "0.1.0"
 dependencies = [
  "blueprint-sdk",
- "openclaw-instance-blueprint-lib",
+ "openclaw-sandbox-blueprint-lib",
 ]
 
 [[package]]

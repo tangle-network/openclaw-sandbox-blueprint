@@ -23,7 +23,7 @@ This spec is grounded in current repository state and avoids duplicate app-local
 
 OpenClaw already exposes:
 
-- On-chain lifecycle jobs via router in `openclaw-instance-blueprint-lib`:
+- On-chain lifecycle jobs via router in `openclaw-sandbox-blueprint-lib`:
   - `0=create`, `1=start`, `2=stop`, `3=delete`
 - Operator API for read/query/auth/setup/terminal/chat/tee/ssh flows.
 

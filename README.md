@@ -18,10 +18,10 @@ executes the matching handler, and submits results back to the chain.
 
 ```
 Cargo.toml                         # workspace root
-openclaw-instance-blueprint-lib/    # library: sol! types, jobs, state, router
-openclaw-instance-blueprint-bin/    # binary: runner entry point (main.rs)
-openclaw-tee-instance-blueprint-lib/ # TEE variant library wrapper
-openclaw-tee-instance-blueprint-bin/ # TEE variant runner binary
+openclaw-sandbox-blueprint-lib/    # library: sol! types, jobs, state, router
+openclaw-sandbox-blueprint-bin/    # binary: runner entry point (main.rs)
+openclaw-tee-sandbox-blueprint-lib/ # TEE variant library wrapper
+openclaw-tee-sandbox-blueprint-bin/ # TEE variant runner binary
 config/templates/                  # template packs (SOUL/USER/TOOLS presets)
 ui/                                # React source UI (blueprint-ui + agent-ui)
 control-plane-ui/                  # embedded operator-served UI build artifacts
@@ -124,7 +124,7 @@ cargo test --all
 
 ```bash
 SERVICE_ID=<id> HTTP_RPC_ENDPOINT=<url> KEYSTORE_URI=<uri> \
-  cargo run --release --bin openclaw-instance-blueprint
+  cargo run --release --bin openclaw-sandbox-blueprint
 ```
 
 ### Create config schema (variant + secure UI tunnel)
@@ -163,7 +163,7 @@ Execution target behavior:
 
 - Default execution target is `standard`.
 - Set `OPENCLAW_EXECUTION_TARGET=tee` to mark new instances as TEE-targeted.
-- The dedicated `openclaw-tee-instance-blueprint` binary sets this automatically.
+- The dedicated `openclaw-tee-sandbox-blueprint` binary sets this automatically.
 
 ## Dependency on sandbox-runtime contracts
 
@@ -226,7 +226,7 @@ Behavior:
 - canonical UI auth env is unified across variants: `SANDBOX_UI_BEARER_TOKEN` (`SANDBOX_UI_AUTH_MODE=bearer`).
 - per-instance token retrieval for owner-scoped sessions: `GET /instances/{id}/access`.
 - canonical env naming + token generation come from
-  `sandbox-runtime::ingress_access_control` (re-exported by `openclaw-instance-blueprint-lib`).
+  `sandbox-runtime::ingress_access_control` (re-exported by `openclaw-sandbox-blueprint-lib`).
 - compatibility aliases are still injected for existing images (`CLAW_UI_BEARER_TOKEN`, `OPENCLAW_GATEWAY_TOKEN`, `NANOCLAW_UI_BEARER_TOKEN`, `GATEWAY_AUTH_TOKEN`).
 - setup bootstrap can be triggered with `POST /instances/{id}/setup/start` (scoped session required).
 - default setup commands:
@@ -275,7 +275,7 @@ Instance state persists at:
 
 - `$OPENCLAW_INSTANCE_STATE_DIR/instances.json` (preferred)
 - fallback: `$OPENCLAW_STATE_DIR/instances.json` (compatibility path)
-- default: `/tmp/openclaw-instance-blueprint/instances.json`
+- default: `/tmp/openclaw-sandbox-blueprint/instances.json`
 
 ## TEE variant
 
@@ -283,7 +283,7 @@ Run the dedicated TEE variant binary:
 
 ```bash
 SERVICE_ID=<id> HTTP_RPC_ENDPOINT=<url> KEYSTORE_URI=<uri> \
-  cargo run --release --bin openclaw-tee-instance-blueprint
+  cargo run --release --bin openclaw-tee-sandbox-blueprint
 ```
 
 ## Engineering workflow

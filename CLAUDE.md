@@ -82,7 +82,7 @@ TEE policy for this repo:
 - Record evidence with exact commands and outcomes in PR descriptions.
 - For UI changes, record both:
   - `pnpm run build:embedded`
-  - `cargo test -p openclaw-instance-blueprint-lib`
+  - `cargo test -p openclaw-sandbox-blueprint-lib`
 
 ## Do Not
 

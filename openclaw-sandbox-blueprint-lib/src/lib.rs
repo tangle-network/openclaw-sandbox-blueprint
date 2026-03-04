@@ -1,6 +1,6 @@
-//! OpenClaw Instance Blueprint
+//! OpenClaw Sandbox Blueprint
 //!
-//! Product-layer blueprint for orchestrating OpenClaw instances on the
+//! Product-layer blueprint for orchestrating OpenClaw sandbox instances on the
 //! Tangle network. State-changing operations (create, start, stop, delete) are
 //! exposed as on-chain jobs. Read-only queries (instance list, instance detail,
 //! template list, health) are served via the operator HTTP API.

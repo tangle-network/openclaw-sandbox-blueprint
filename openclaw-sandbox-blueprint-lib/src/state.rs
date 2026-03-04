@@ -298,7 +298,7 @@ fn state_dir() -> PathBuf {
     std::env::var("OPENCLAW_INSTANCE_STATE_DIR")
         .or_else(|_| std::env::var("OPENCLAW_STATE_DIR"))
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp/openclaw-instance-blueprint"))
+        .unwrap_or_else(|_| PathBuf::from("/tmp/openclaw-sandbox-blueprint"))
 }
 
 static INSTANCES: OnceCell<InstanceStore> = OnceCell::new();

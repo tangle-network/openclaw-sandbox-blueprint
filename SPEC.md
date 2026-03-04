@@ -12,7 +12,7 @@ orchestration on the Tangle network.
 - **Execution target metadata** is persisted per instance:
   `standard` (default) or `tee`.
 - **TEE runner variant** is provided as a dedicated binary:
-  `openclaw-tee-instance-blueprint`.
+  `openclaw-tee-sandbox-blueprint`.
 - **Read-only operations are query surfaces only:**
   instance list, instance detail, template list, health check.
 - **Template packs** define SOUL/USER/TOOLS presets for Discord, Telegram, Ops,
