@@ -31,6 +31,22 @@ pub struct RuntimeCreateInput {
     pub now: i64,
 }
 
+/// Result of running a command inside an instance runtime.
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeCommandOutput {
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// SSH key mutation request for an instance runtime.
+#[derive(Clone, Debug)]
+pub struct RuntimeSshKeyRequest {
+    pub username: String,
+    pub public_key: String,
+    pub revoke: bool,
+}
+
 /// Runtime adapter contract for lifecycle handlers.
 pub trait InstanceRuntimeAdapter: Send + Sync + 'static {
     fn create_instance(&self, input: RuntimeCreateInput) -> Result<InstanceRecord>;
@@ -57,6 +73,25 @@ pub trait InstanceRuntimeAdapter: Send + Sync + 'static {
     }
     fn refresh_instance(&self, record: InstanceRecord) -> Result<InstanceRecord> {
         Ok(record)
+    }
+    fn run_instance_command(
+        &self,
+        _record: &InstanceRecord,
+        _command: &str,
+        _env: &BTreeMap<String, String>,
+    ) -> Result<RuntimeCommandOutput> {
+        Err(InstanceError::Store(
+            "command execution is not supported by active runtime backend".to_string(),
+        ))
+    }
+    fn update_instance_ssh_key(
+        &self,
+        _record: &InstanceRecord,
+        _request: &RuntimeSshKeyRequest,
+    ) -> Result<()> {
+        Err(InstanceError::Store(
+            "ssh key management is not supported by active runtime backend".to_string(),
+        ))
     }
 }
 
@@ -328,6 +363,22 @@ impl DockerRuntimeAdapter {
         }
 
         Some(parts.join(" | "))
+    }
+
+    fn ssh_authorized_keys_path_for_variant(
+        &self,
+        variant: &ClawVariant,
+        username: &str,
+    ) -> String {
+        let key = variant_env_key(variant, "SSH_AUTHORIZED_KEYS_PATH");
+        if let Some(raw) = env_trimmed(&key) {
+            return raw.replace("{username}", username);
+        }
+        if username == "root" {
+            "/root/.ssh/authorized_keys".to_string()
+        } else {
+            format!("/home/{username}/.ssh/authorized_keys")
+        }
     }
 }
 
@@ -645,6 +696,95 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
         }
         Ok(record)
     }
+
+    fn run_instance_command(
+        &self,
+        record: &InstanceRecord,
+        command: &str,
+        env: &BTreeMap<String, String>,
+    ) -> Result<RuntimeCommandOutput> {
+        let target = Self::container_ref(record)?;
+        let mut args = vec!["exec".to_string()];
+        for (key, value) in env {
+            validate_env_key(key)?;
+            args.push("--env".to_string());
+            args.push(format!("{key}={value}"));
+        }
+        args.push(target);
+        args.push("sh".to_string());
+        args.push("-lc".to_string());
+        args.push(command.to_string());
+
+        let output = Command::new("docker")
+            .args(&args)
+            .output()
+            .map_err(|e| InstanceError::Store(format!("failed to execute docker: {e}")))?;
+        Ok(RuntimeCommandOutput {
+            exit_code: output.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        })
+    }
+
+    fn update_instance_ssh_key(
+        &self,
+        record: &InstanceRecord,
+        request: &RuntimeSshKeyRequest,
+    ) -> Result<()> {
+        validate_ssh_username(&request.username)?;
+        validate_ssh_public_key(&request.public_key)?;
+
+        let target = Self::container_ref(record)?;
+        let auth_file =
+            self.ssh_authorized_keys_path_for_variant(&record.claw_variant, &request.username);
+        let command = if request.revoke {
+            r#"
+if [ -f "$OPENCLAW_AUTH_KEYS_FILE" ]; then
+  tmp="$OPENCLAW_AUTH_KEYS_FILE.tmp"
+  grep -vxF "$OPENCLAW_SSH_PUBLIC_KEY" "$OPENCLAW_AUTH_KEYS_FILE" > "$tmp" || true
+  mv "$tmp" "$OPENCLAW_AUTH_KEYS_FILE"
+  chmod 600 "$OPENCLAW_AUTH_KEYS_FILE"
+fi
+"#
+        } else {
+            r#"
+mkdir -p "$(dirname "$OPENCLAW_AUTH_KEYS_FILE")"
+touch "$OPENCLAW_AUTH_KEYS_FILE"
+chmod 600 "$OPENCLAW_AUTH_KEYS_FILE"
+if ! grep -qxF "$OPENCLAW_SSH_PUBLIC_KEY" "$OPENCLAW_AUTH_KEYS_FILE"; then
+  printf '%s\n' "$OPENCLAW_SSH_PUBLIC_KEY" >> "$OPENCLAW_AUTH_KEYS_FILE"
+fi
+"#
+        };
+
+        let args = vec![
+            "exec".to_string(),
+            "--env".to_string(),
+            format!("OPENCLAW_AUTH_KEYS_FILE={auth_file}"),
+            "--env".to_string(),
+            format!("OPENCLAW_SSH_PUBLIC_KEY={}", request.public_key),
+            target,
+            "sh".to_string(),
+            "-lc".to_string(),
+            command.to_string(),
+        ];
+        let output = Command::new("docker")
+            .args(&args)
+            .output()
+            .map_err(|e| InstanceError::Store(format!("failed to execute docker: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(InstanceError::Store(format!(
+                "failed updating ssh key inside container: {}",
+                if stderr.is_empty() {
+                    "unknown error"
+                } else {
+                    &stderr
+                }
+            )));
+        }
+        Ok(())
+    }
 }
 
 static RUNTIME_ADAPTER: OnceCell<Arc<dyn InstanceRuntimeAdapter>> = OnceCell::new();
@@ -865,6 +1005,48 @@ fn validate_env_key(key: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_ssh_username(username: &str) -> Result<()> {
+    let value = username.trim();
+    if value.is_empty() {
+        return Err(InstanceError::Store(
+            "ssh username must not be empty".to_string(),
+        ));
+    }
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(InstanceError::Store(format!(
+            "ssh username `{value}` contains unsupported characters"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_ssh_public_key(public_key: &str) -> Result<()> {
+    let value = public_key.trim();
+    if value.is_empty() {
+        return Err(InstanceError::Store(
+            "ssh public key must not be empty".to_string(),
+        ));
+    }
+    if value.contains('\n') || value.contains('\r') {
+        return Err(InstanceError::Store(
+            "ssh public key must be a single line".to_string(),
+        ));
+    }
+    let allowed_prefixes = ["ssh-rsa ", "ssh-ed25519 ", "ecdsa-sha2-", "sk-ssh-ed25519@"];
+    if !allowed_prefixes
+        .iter()
+        .any(|prefix| value.starts_with(prefix))
+    {
+        return Err(InstanceError::Store(format!(
+            "unsupported ssh public key type for key `{value}`"
+        )));
+    }
+    Ok(())
+}
+
 fn product_variant(variant: &ClawVariant) -> ClawProductVariant {
     match variant {
         ClawVariant::Openclaw => ClawProductVariant::Openclaw,
@@ -1070,6 +1252,17 @@ mod tests {
         assert!(validate_env_key("").is_err());
         assert!(validate_env_key("HAS=EQUAL").is_err());
         assert!(validate_env_key("has-dash").is_err());
+    }
+
+    #[test]
+    fn validate_ssh_inputs_reject_invalid_values() {
+        assert!(validate_ssh_username("agent_1").is_ok());
+        assert!(validate_ssh_username("").is_err());
+        assert!(validate_ssh_username("bad name").is_err());
+
+        assert!(validate_ssh_public_key("ssh-ed25519 AAAA key").is_ok());
+        assert!(validate_ssh_public_key("invalid-key").is_err());
+        assert!(validate_ssh_public_key("ssh-ed25519 AAAA\nnewline").is_err());
     }
 
     #[test]
@@ -1333,6 +1526,80 @@ mod tests {
         }
     }
 
+    #[test]
+    #[ignore = "requires Docker daemon and network image pull"]
+    fn docker_ssh_key_roundtrip() {
+        unsafe {
+            std::env::set_var("OPENCLAW_VARIANT_OPENCLAW_UI_PORT", "80");
+        }
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "nginx:alpine".to_string(),
+                nanoclaw: "nginx:alpine".to_string(),
+                ironclaw: "nginx:alpine".to_string(),
+            },
+            auto_pull: true,
+            auto_trigger_setup: false,
+        };
+        let instance_id = format!("docker-ssh-{}", uuid::Uuid::new_v4());
+        let now = chrono::Utc::now().timestamp();
+        let mut record = adapter
+            .create_instance(RuntimeCreateInput {
+                id: instance_id,
+                name: "docker ssh".to_string(),
+                template_pack_id: "ops".to_string(),
+                claw_variant: ClawVariant::Openclaw,
+                config_json: "{}".to_string(),
+                owner: "0xabc".to_string(),
+                ui_access: UiAccess::default(),
+                execution_target: ExecutionTarget::Standard,
+                now,
+            })
+            .expect("docker create");
+
+        adapter
+            .on_start_instance(&mut record)
+            .expect("docker start succeeds");
+        let container_ref = DockerRuntimeAdapter::container_ref(&record).expect("container ref");
+        let key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyabc123 ssh@test";
+        adapter
+            .update_instance_ssh_key(
+                &record,
+                &RuntimeSshKeyRequest {
+                    username: "agent".to_string(),
+                    public_key: key.to_string(),
+                    revoke: false,
+                },
+            )
+            .expect("ssh provision");
+        wait_for_container_file_contains(&container_ref, "/home/agent/.ssh/authorized_keys", key)
+            .expect("ssh key must be present");
+
+        adapter
+            .update_instance_ssh_key(
+                &record,
+                &RuntimeSshKeyRequest {
+                    username: "agent".to_string(),
+                    public_key: key.to_string(),
+                    revoke: true,
+                },
+            )
+            .expect("ssh revoke");
+        wait_for_container_file_not_contains(
+            &container_ref,
+            "/home/agent/.ssh/authorized_keys",
+            key,
+        )
+        .expect("ssh key must be removed");
+
+        adapter
+            .on_delete_instance(&mut record)
+            .expect("docker delete succeeds");
+        unsafe {
+            std::env::remove_var("OPENCLAW_VARIANT_OPENCLAW_UI_PORT");
+        }
+    }
+
     fn wait_for_http_ok(url: &str) -> Result<()> {
         for _ in 0..20 {
             let output = Command::new("curl")
@@ -1374,6 +1641,34 @@ mod tests {
 
         Err(InstanceError::Store(format!(
             "timed out waiting for `{expected}` in {path} for container {container_ref}"
+        )))
+    }
+
+    fn wait_for_container_file_not_contains(
+        container_ref: &str,
+        path: &str,
+        blocked: &str,
+    ) -> Result<()> {
+        let read_command = format!("cat {path}");
+        for _ in 0..25 {
+            let output = Command::new("docker")
+                .args(["exec", container_ref, "sh", "-lc", &read_command])
+                .output()
+                .map_err(|e| InstanceError::Store(format!("failed to run docker exec: {e}")))?;
+
+            if !output.status.success() {
+                return Ok(());
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if !stdout.contains(blocked) {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+
+        Err(InstanceError::Store(format!(
+            "timed out waiting for `{blocked}` to be removed from {path} for container {container_ref}"
         )))
     }
 }

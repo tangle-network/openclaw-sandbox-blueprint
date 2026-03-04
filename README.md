@@ -62,6 +62,20 @@ operator HTTP API:
 - `GET /instances/{id}` (requires bearer auth)
 - `GET /instances/{id}/access` (requires scoped bearer auth; returns per-instance UI bearer token)
 - `POST /instances/{id}/setup/start` (requires scoped bearer auth)
+- `POST /instances/{id}/ssh` (requires scoped bearer auth; provision SSH public key)
+- `DELETE /instances/{id}/ssh` (requires scoped bearer auth; revoke SSH public key)
+- `POST /instances/{id}/terminals` (requires scoped bearer auth; create terminal session)
+- `GET /instances/{id}/terminals/{terminalId}/stream` (SSE terminal stream; bearer via header or `?token=`)
+- `POST /instances/{id}/terminals/{terminalId}/execute` (requires scoped bearer auth)
+- `DELETE /instances/{id}/terminals/{terminalId}` (requires scoped bearer auth)
+- `GET /instances/{id}/session/sessions` (requires scoped bearer auth; list chat sessions)
+- `POST /instances/{id}/session/sessions` (requires scoped bearer auth; create chat session)
+- `PATCH /instances/{id}/session/sessions/{sessionId}` (requires scoped bearer auth; rename session)
+- `DELETE /instances/{id}/session/sessions/{sessionId}` (requires scoped bearer auth)
+- `GET /instances/{id}/session/sessions/{sessionId}/messages` (requires scoped bearer auth)
+- `POST /instances/{id}/session/sessions/{sessionId}/messages` (requires scoped bearer auth)
+- `POST /instances/{id}/session/sessions/{sessionId}/abort` (requires scoped bearer auth)
+- `GET /instances/{id}/session/events` (SSE chat stream; query `sessionId`, bearer via header or `?token=`)
 
 Session endpoints:
 
@@ -204,9 +218,18 @@ Behavior:
   - IronClaw: `ironclaw onboard`
 - command override per variant: `OPENCLAW_VARIANT_<...>_SETUP_COMMAND`
 - setup env allowlist per variant: `OPENCLAW_VARIANT_<...>_SETUP_ENV_KEYS` (comma-separated)
+- optional chat command per variant:
+  - `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_CHAT_COMMAND`
+  - command runs inside the container and receives prompt through env var `OPENCLAW_CHAT_PROMPT`
 
 This repository does not publish or bundle the variant images. You must provide
 valid image references for your environment.
+
+Agent UI compatibility:
+
+- `@tangle-network/agent-ui` terminal/session hooks are compatible when using
+  `apiUrl=http://<operator>/instances/<instance-id>` with scoped session bearer
+  token.
 
 ## Security posture (current)
 

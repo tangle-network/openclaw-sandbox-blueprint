@@ -94,6 +94,13 @@ HTTP API (axum):
 - `GET /instances/{id}` — instance detail
 - `GET /instances/{id}/access` — fetch per-instance UI bearer token (scoped session only)
 - `POST /instances/{id}/setup/start` — trigger variant setup bootstrap (scoped session only)
+- `POST /instances/{id}/ssh` and `DELETE /instances/{id}/ssh` — SSH key management
+- `POST /instances/{id}/terminals` — create terminal session
+- `GET /instances/{id}/terminals/{terminalId}/stream` — terminal SSE stream
+- `POST /instances/{id}/terminals/{terminalId}/execute` — terminal command exec
+- `DELETE /instances/{id}/terminals/{terminalId}` — close terminal session
+- `GET/POST/PATCH/DELETE /instances/{id}/session/sessions[...]` — chat session CRUD
+- `GET /instances/{id}/session/events?sessionId=...` — chat SSE stream
 - `GET /templates` — list template packs
 - `GET /health` — liveness check
 
@@ -137,6 +144,8 @@ The adapter boundary is implemented:
 - `LocalStateRuntimeAdapter` is the default adapter (file-backed local state).
 - `DockerRuntimeAdapter` executes real container lifecycle via Docker CLI when
   `OPENCLAW_RUNTIME_BACKEND=docker` and image env vars are configured.
+- Runtime adapter also exposes container command execution and SSH key updates
+  so operator APIs can provide terminal/chat/SSH surfaces without mock backends.
 - Canonical UI auth env key across variants is `SANDBOX_UI_BEARER_TOKEN`
   (`SANDBOX_UI_AUTH_MODE=bearer`), with compatibility aliases still injected for existing images.
 - Runtime maps UI ports to loopback host addresses only (`127.0.0.1`), so
