@@ -21,10 +21,12 @@
   }
 
   body {
-    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
     background: var(--claw-elements-bg-depth-1);
     color: var(--claw-elements-textPrimary);
-    line-height: 1.5;
+    line-height: 1.58;
+    letter-spacing: 0.006em;
+    font-size: 15.5px;
   }
 
   a {
@@ -42,27 +44,12 @@
   }
 }
 
-.bg-mesh {
-  position: relative;
-}
-
-.bg-mesh::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 80% 45% at 8% 0%, var(--mesh-cyan), transparent),
-    radial-gradient(ellipse 70% 40% at 90% 10%, var(--mesh-blue), transparent),
-    radial-gradient(ellipse 70% 50% at 50% 100%, var(--mesh-amber), transparent);
-  z-index: 0;
-}
-
 .glass {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.24);
 }
 
 .glass-strong {
@@ -70,6 +57,107 @@
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.22);
+}
+
+.claw-app-bg {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(16, 185, 129, 0.18), transparent 38%),
+    radial-gradient(circle at 92% 8%, rgba(249, 115, 22, 0.14), transparent 34%),
+    radial-gradient(circle at 52% 100%, rgba(14, 165, 233, 0.1), transparent 46%),
+    var(--claw-elements-bg-depth-1);
+}
+
+.claw-floating-bar {
+  border-color: rgba(184, 204, 226, 0.28);
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.34);
+}
+
+.variant-card {
+  border: 1px solid var(--claw-elements-dividerColor);
+  border-radius: 16px;
+  padding: 12px;
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+  background: color-mix(in oklab, var(--claw-elements-bg-depth-2) 92%, white 8%);
+}
+
+.variant-card:hover {
+  transform: translateY(-2px);
+}
+
+.variant-card-active {
+  border-color: rgba(45, 212, 191, 0.56);
+  background: color-mix(in oklab, var(--claw-elements-bg-depth-2) 84%, #14b8a6 16%);
+}
+
+.variant-card[data-variant='teal'] {
+  box-shadow: inset 0 1px 0 rgba(94, 234, 212, 0.22);
+}
+
+.variant-card[data-variant='amber'] {
+  box-shadow: inset 0 1px 0 rgba(251, 191, 36, 0.22);
+}
+
+.variant-card[data-variant='rose'] {
+  box-shadow: inset 0 1px 0 rgba(251, 113, 133, 0.24);
+}
+
+.variant-figure {
+  height: 156px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--claw-elements-dividerColor);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.template-card {
+  border: 1px solid var(--claw-elements-dividerColor);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--claw-elements-bg-depth-2) 94%, white 6%);
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.template-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--claw-elements-dividerColor) 62%, #2dd4bf 38%);
+}
+
+.template-card-active {
+  border-color: rgba(45, 212, 191, 0.56);
+  background: color-mix(in oklab, var(--claw-elements-bg-depth-2) 86%, #14b8a6 14%);
+  box-shadow: inset 0 1px 0 rgba(94, 234, 212, 0.24);
+}
+
+.wizard-step-shell {
+  min-height: clamp(460px, 58dvh, 620px);
+  max-height: min(620px, 70dvh);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wizard-step-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.wizard-actions {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--claw-elements-dividerColor);
+  padding-top: 12px;
+}
+
+.wizard-actions-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .scroll-thin::-webkit-scrollbar {
@@ -83,9 +171,31 @@
 }
 
 .font-display {
-  font-family: 'Outfit', system-ui, sans-serif;
+  font-family: 'Sora', system-ui, sans-serif;
 }
 
 .font-data {
   font-family: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.claw-text-success {
+  color: var(--claw-elements-text-success);
+}
+
+.claw-text-warning {
+  color: var(--claw-elements-text-warning);
+}
+
+.claw-text-danger {
+  color: var(--claw-elements-text-danger);
+}
+
+.claw-text-accent {
+  color: var(--claw-elements-text-accent);
+}
+
+@media (max-width: 900px) {
+  body {
+    font-size: 14px;
+  }
 }

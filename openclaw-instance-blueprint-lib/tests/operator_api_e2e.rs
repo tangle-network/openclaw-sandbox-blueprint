@@ -99,7 +99,8 @@ async fn docker_operator_api_control_plane_e2e() {
         .expect("fetch control-plane index");
     assert!(ui_shell.status().is_success());
     let shell_html = ui_shell.text().await.expect("index html");
-    assert!(shell_html.contains("OpenClaw Instance Control Plane"));
+    assert!(shell_html.contains("id=\"root\""));
+    assert!(shell_html.contains("app.js"));
 
     let operator_instances = client
         .get(format!("{base}/instances"))

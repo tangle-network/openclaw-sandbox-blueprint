@@ -1,4 +1,5 @@
 export const TOKEN_STORAGE_KEY = 'openclawBearerToken';
+const API_BASE_URL = resolveApiBaseUrl();
 
 export interface TemplatePack {
   id: string;
@@ -86,12 +87,45 @@ export interface SessionSummary {
   parentID?: string;
 }
 
+export interface ProvisionInstanceInput {
+  name: string;
+  templatePackId: string;
+  clawVariant: 'openclaw' | 'nanoclaw' | 'ironclaw';
+  executionTarget: 'standard' | 'tee';
+}
+
 interface ApiErrorBody {
   error?: {
     code?: string;
     message?: string;
   };
   requestId?: string;
+}
+
+function resolveApiBaseUrl(): string {
+  const configured = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
+  if (configured) {
+    return configured.replace(/\/+$/, '');
+  }
+
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const currentPort = window.location.port;
+  const defaultApiPort = (import.meta.env.VITE_API_PORT ?? '8787').trim() || '8787';
+  if (!currentPort || currentPort === defaultApiPort) {
+    return '';
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+  return `${protocol}://${window.location.hostname}:${defaultApiPort}`;
+}
+
+function withApiBase(path: string): string {
+  if (!API_BASE_URL) return path;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 export function loadSavedToken(): string {
@@ -160,7 +194,7 @@ async function requestJson<T>(path: string, token: string, init?: RequestInit): 
     headers.set('Authorization', `Bearer ${token.trim()}`);
   }
 
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(withApiBase(path), { ...init, headers });
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
@@ -180,6 +214,16 @@ export async function fetchTemplates(token: string): Promise<TemplatePack[]> {
 export async function fetchInstances(token: string): Promise<InstanceView[]> {
   const response = await requestJson<{ instances: InstanceView[] }>('/instances', token);
   return response.instances;
+}
+
+export async function provisionInstance(
+  token: string,
+  payload: ProvisionInstanceInput,
+): Promise<InstanceView> {
+  return requestJson<InstanceView>('/instances/dev/provision', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createSessionFromAccessToken(

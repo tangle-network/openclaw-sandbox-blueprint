@@ -9,13 +9,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     />
     <script>
       (function () {
         const key = 'openclaw_ui_theme';
         const saved = localStorage.getItem(key);
-        const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        const theme = saved || 'dark';
         document.documentElement.setAttribute('data-theme', theme);
       })();
     </script>
@@ -24,5 +24,31 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        const c = globalThis.crypto;
+        if (!c || typeof c.randomUUID === 'function' || typeof c.getRandomValues !== 'function') {
+          return;
+        }
+        c.randomUUID = function () {
+          const bytes = new Uint8Array(16);
+          c.getRandomValues(bytes);
+          bytes[6] = (bytes[6] & 15) | 64;
+          bytes[8] = (bytes[8] & 63) | 128;
+          const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+          return (
+            hex.slice(0, 8) +
+            '-' +
+            hex.slice(8, 12) +
+            '-' +
+            hex.slice(12, 16) +
+            '-' +
+            hex.slice(16, 20) +
+            '-' +
+            hex.slice(20)
+          );
+        };
+      })();
+    </script>
   </body>
 </html>
