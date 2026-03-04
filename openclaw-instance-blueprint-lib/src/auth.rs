@@ -1,10 +1,12 @@
 //! Session/challenge authentication helpers for operator APIs.
+//!
+//! This module is intentionally thin: reusable auth primitives live in
+//! `sandbox-runtime::scoped_session_auth` and OpenClaw only maps blueprint
+//! state/types into that shared interface.
 
-use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
-
-use alloy_primitives::{Address, Signature};
-use chrono::Utc;
+use sandbox_runtime::scoped_session_auth::{
+    ScopedAuthConfig, ScopedAuthMode, ScopedAuthResource, ScopedAuthService, ScopedSessionClaims,
+};
 
 use crate::state::{InstanceRecord, UiAuthMode};
 
@@ -44,39 +46,18 @@ impl AuthConfig {
     }
 }
 
-#[derive(Clone, Debug)]
-struct WalletChallengeEntry {
-    instance_id: String,
-    owner: String,
-    wallet: Address,
-    message: String,
-    expires_at: i64,
-}
-
-#[derive(Clone, Debug)]
-struct SessionEntry {
-    instance_id: String,
-    owner: String,
-    expires_at: i64,
-}
-
-#[derive(Clone, Debug)]
-struct AuthState {
-    challenges: BTreeMap<String, WalletChallengeEntry>,
-    sessions: BTreeMap<String, SessionEntry>,
-}
-
-impl AuthState {
-    fn gc(&mut self, now: i64) {
-        self.challenges.retain(|_, c| c.expires_at > now);
-        self.sessions.retain(|_, s| s.expires_at > now);
+impl From<AuthConfig> for ScopedAuthConfig {
+    fn from(value: AuthConfig) -> Self {
+        Self {
+            challenge_ttl_secs: value.challenge_ttl_secs,
+            session_ttl_secs: value.session_ttl_secs,
+            access_token: value.access_token,
+            operator_api_token: value.operator_api_token,
+            token_prefix: "oclw_".to_string(),
+            challenge_message_header: "OpenClaw Instance Access".to_string(),
+            ..ScopedAuthConfig::default()
+        }
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct AuthService {
-    config: AuthConfig,
-    state: Arc<Mutex<AuthState>>,
 }
 
 #[derive(Clone, Debug)]
@@ -100,37 +81,26 @@ pub enum SessionClaims {
     Scoped { instance_id: String, owner: String },
 }
 
+#[derive(Clone, Debug)]
+pub struct AuthService {
+    inner: ScopedAuthService,
+}
+
 impl AuthService {
     pub fn new(config: AuthConfig) -> Self {
         Self {
-            config,
-            state: Arc::new(Mutex::new(AuthState {
-                challenges: BTreeMap::new(),
-                sessions: BTreeMap::new(),
-            })),
+            inner: ScopedAuthService::new(config.into()),
         }
     }
 
     pub fn resolve_bearer(&self, token: &str) -> Option<SessionClaims> {
-        if token.trim().is_empty() {
-            return None;
-        }
-        if let Some(operator_token) = &self.config.operator_api_token
-            && token == operator_token
-        {
-            return Some(SessionClaims::Operator);
-        }
-
-        let mut state = self.state.lock().ok()?;
-        let now = Utc::now().timestamp();
-        state.gc(now);
-        state
-            .sessions
-            .get(token)
-            .map(|session| SessionClaims::Scoped {
-                instance_id: session.instance_id.clone(),
-                owner: session.owner.clone(),
-            })
+        self.inner.resolve_bearer(token).map(|claims| match claims {
+            ScopedSessionClaims::Operator => SessionClaims::Operator,
+            ScopedSessionClaims::Scoped { scope_id, owner } => SessionClaims::Scoped {
+                instance_id: scope_id,
+                owner,
+            },
+        })
     }
 
     pub fn create_wallet_challenge(
@@ -138,48 +108,13 @@ impl AuthService {
         instance: &InstanceRecord,
         wallet_address: &str,
     ) -> Result<ChallengeResponse, String> {
-        if instance.ui_access.auth_mode != UiAuthMode::WalletSignature {
-            return Err("instance does not use wallet_signature auth mode".to_string());
-        }
-
-        let wallet = parse_address(wallet_address)?;
-        let owner = parse_address(&instance.owner)?;
-        if wallet != owner {
-            return Err("wallet address does not match instance owner".to_string());
-        }
-
-        let now = Utc::now().timestamp();
-        let expires_at = now + self.config.challenge_ttl_secs;
-        let challenge_id = uuid::Uuid::new_v4().to_string();
-        let message = format!(
-            "OpenClaw Instance Access\ninstance_id:{id}\nowner:{owner}\nchallenge_id:{challenge}\nissued_at:{now}\nexpires_at:{expires}",
-            id = instance.id,
-            owner = instance.owner,
-            challenge = challenge_id,
-            now = now,
-            expires = expires_at
-        );
-
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|e| format!("auth state lock poisoned: {e}"))?;
-        state.gc(now);
-        state.challenges.insert(
-            challenge_id.clone(),
-            WalletChallengeEntry {
-                instance_id: instance.id.clone(),
-                owner: instance.owner.clone(),
-                wallet,
-                message: message.clone(),
-                expires_at,
-            },
-        );
-
+        let response = self
+            .inner
+            .create_wallet_challenge(&resource_from_instance(instance), wallet_address)?;
         Ok(ChallengeResponse {
-            challenge_id,
-            message,
-            expires_at,
+            challenge_id: response.challenge_id,
+            message: response.message,
+            expires_at: response.expires_at,
         })
     }
 
@@ -188,44 +123,14 @@ impl AuthService {
         challenge_id: &str,
         signature_hex: &str,
     ) -> Result<SessionResponse, String> {
-        let now = Utc::now().timestamp();
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|e| format!("auth state lock poisoned: {e}"))?;
-        state.gc(now);
-
-        let Some(challenge) = state.challenges.remove(challenge_id) else {
-            return Err("challenge not found or expired".to_string());
-        };
-
-        let signature = signature_hex
-            .trim()
-            .parse::<Signature>()
-            .map_err(|e| format!("invalid signature: {e}"))?;
-        let recovered = signature
-            .recover_address_from_msg(challenge.message.as_bytes())
-            .map_err(|e| format!("failed to recover signer from signature: {e}"))?;
-        if recovered != challenge.wallet {
-            return Err("signature does not match challenge wallet".to_string());
-        }
-
-        let expires_at = now + self.config.session_ttl_secs;
-        let token = issue_token();
-        state.sessions.insert(
-            token.clone(),
-            SessionEntry {
-                instance_id: challenge.instance_id.clone(),
-                owner: challenge.owner.clone(),
-                expires_at,
-            },
-        );
-
+        let session = self
+            .inner
+            .verify_wallet_challenge(challenge_id, signature_hex)?;
         Ok(SessionResponse {
-            token,
-            expires_at,
-            instance_id: challenge.instance_id,
-            owner: challenge.owner,
+            token: session.token,
+            expires_at: session.expires_at,
+            instance_id: session.scope_id,
+            owner: session.owner,
         })
     }
 
@@ -234,56 +139,88 @@ impl AuthService {
         instance: &InstanceRecord,
         access_token: &str,
     ) -> Result<SessionResponse, String> {
-        if instance.ui_access.auth_mode != UiAuthMode::AccessToken {
-            return Err("instance does not use access_token auth mode".to_string());
-        }
-        let Some(expected) = &self.config.access_token else {
-            return Err("OPENCLAW_UI_ACCESS_TOKEN is not configured".to_string());
-        };
-        if access_token.trim() != expected {
-            return Err("invalid access token".to_string());
-        }
-
-        let now = Utc::now().timestamp();
-        let expires_at = now + self.config.session_ttl_secs;
-        let token = issue_token();
-
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|e| format!("auth state lock poisoned: {e}"))?;
-        state.gc(now);
-        state.sessions.insert(
-            token.clone(),
-            SessionEntry {
-                instance_id: instance.id.clone(),
-                owner: instance.owner.clone(),
-                expires_at,
-            },
-        );
+        let session = self
+            .inner
+            .create_access_token_session(&resource_from_instance(instance), access_token)?;
 
         Ok(SessionResponse {
-            token,
-            expires_at,
-            instance_id: instance.id.clone(),
-            owner: instance.owner.clone(),
+            token: session.token,
+            expires_at: session.expires_at,
+            instance_id: session.scope_id,
+            owner: session.owner,
         })
     }
 }
 
-fn parse_address(raw: &str) -> Result<Address, String> {
-    raw.trim()
-        .parse::<Address>()
-        .map_err(|e| format!("invalid address `{raw}`: {e}"))
-}
-
-fn issue_token() -> String {
-    format!("oclw_{}", uuid::Uuid::new_v4().simple())
+fn resource_from_instance(instance: &InstanceRecord) -> ScopedAuthResource {
+    ScopedAuthResource {
+        scope_id: instance.id.clone(),
+        owner: instance.owner.clone(),
+        auth_mode: match instance.ui_access.auth_mode {
+            UiAuthMode::WalletSignature => ScopedAuthMode::WalletSignature,
+            UiAuthMode::AccessToken => ScopedAuthMode::AccessToken,
+        },
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::AuthConfig;
+    use super::{AuthConfig, AuthService, SessionClaims};
+    use crate::state::{
+        ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, RuntimeBinding, UiAccess,
+        UiAuthMode,
+    };
+    use k256::ecdsa::SigningKey;
+    use k256::elliptic_curve::rand_core::OsRng;
+    use tiny_keccak::{Hasher, Keccak};
+
+    fn keccak256(data: &[u8]) -> [u8; 32] {
+        let mut hasher = Keccak::v256();
+        let mut output = [0_u8; 32];
+        hasher.update(data);
+        hasher.finalize(&mut output);
+        output
+    }
+
+    fn address_from_signing_key(signing_key: &SigningKey) -> String {
+        let verifying_key = signing_key.verifying_key();
+        let pubkey_bytes = verifying_key.to_encoded_point(false);
+        let pubkey_uncompressed = &pubkey_bytes.as_bytes()[1..];
+        let address_hash = keccak256(pubkey_uncompressed);
+        format!("0x{}", hex::encode(&address_hash[12..]))
+    }
+
+    fn sign_eip191_message(signing_key: &SigningKey, message: &str) -> String {
+        let prefixed = format!("\x19Ethereum Signed Message:\n{}{}", message.len(), message);
+        let digest = keccak256(prefixed.as_bytes());
+        let (signature, recovery_id) = signing_key
+            .sign_prehash_recoverable(&digest)
+            .expect("signing should succeed");
+        let mut sig_bytes = Vec::with_capacity(65);
+        sig_bytes.extend_from_slice(&signature.to_bytes());
+        sig_bytes.push(recovery_id.to_byte() + 27);
+        format!("0x{}", hex::encode(sig_bytes))
+    }
+
+    fn wallet_instance(owner: &str) -> InstanceRecord {
+        InstanceRecord {
+            id: "inst-wallet-auth".to_string(),
+            name: "wallet-auth".to_string(),
+            template_pack_id: "ops".to_string(),
+            claw_variant: ClawVariant::Openclaw,
+            config_json: "{}".to_string(),
+            owner: owner.to_string(),
+            ui_access: UiAccess {
+                auth_mode: UiAuthMode::WalletSignature,
+                ..UiAccess::default()
+            },
+            runtime: RuntimeBinding::default(),
+            execution_target: ExecutionTarget::Standard,
+            state: InstanceState::Running,
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
 
     #[test]
     fn env_token_fields_can_be_present() {
@@ -295,5 +232,68 @@ mod tests {
         };
         assert_eq!(cfg.access_token.as_deref(), Some("x"));
         assert_eq!(cfg.operator_api_token.as_deref(), Some("y"));
+    }
+
+    #[test]
+    fn wallet_challenge_roundtrip_creates_scoped_session() {
+        let signing_key = SigningKey::random(&mut OsRng);
+        let owner = address_from_signing_key(&signing_key);
+        let instance = wallet_instance(&owner);
+
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: None,
+            operator_api_token: Some("operator-token".to_string()),
+        });
+
+        let challenge = auth
+            .create_wallet_challenge(&instance, &owner)
+            .expect("challenge should be created");
+        let signature = sign_eip191_message(&signing_key, &challenge.message);
+        let session = auth
+            .verify_wallet_challenge(&challenge.challenge_id, &signature)
+            .expect("wallet session should be issued");
+
+        assert!(session.token.starts_with("oclw_"));
+        assert_eq!(session.instance_id, instance.id);
+        assert_eq!(
+            session.owner.to_ascii_lowercase(),
+            owner.to_ascii_lowercase()
+        );
+
+        let claims = auth
+            .resolve_bearer(&session.token)
+            .expect("issued token should resolve");
+        match claims {
+            SessionClaims::Scoped { instance_id, owner } => {
+                assert_eq!(instance_id, instance.id);
+                assert_eq!(
+                    owner.to_ascii_lowercase(),
+                    instance.owner.to_ascii_lowercase()
+                );
+            }
+            SessionClaims::Operator => panic!("wallet session must not resolve as operator"),
+        }
+    }
+
+    #[test]
+    fn wallet_challenge_rejects_non_owner_wallet() {
+        let signing_key = SigningKey::random(&mut OsRng);
+        let owner = address_from_signing_key(&signing_key);
+        let instance = wallet_instance(&owner);
+        let non_owner = "0x0000000000000000000000000000000000000002";
+
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: None,
+            operator_api_token: None,
+        });
+
+        let err = auth
+            .create_wallet_challenge(&instance, non_owner)
+            .expect_err("challenge should reject wallet that is not instance owner");
+        assert!(err.contains("wallet address does not match"));
     }
 }

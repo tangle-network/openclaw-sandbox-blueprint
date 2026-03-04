@@ -1,21 +1,21 @@
 //! Operator HTTP API for read-only queries and session auth.
 
 use std::collections::BTreeMap;
-use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
+use sandbox_runtime::live_operator_sessions::{
+    LiveChatSession, LiveJsonEvent, LiveSessionStore, LiveTerminalSession, sse_from_json_events,
+    sse_from_terminal_output,
+};
+use sandbox_runtime::session_auth::extract_bearer_token;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, watch};
-use tokio_stream::StreamExt;
-use tokio_stream::wrappers::BroadcastStream;
 use tracing::error;
 
 use crate::auth::{AuthConfig, AuthService, SessionClaims};
@@ -29,37 +29,7 @@ use crate::state::{ClawVariant, InstanceRecord};
 struct ApiState {
     adapter: Arc<dyn InstanceRuntimeAdapter>,
     auth: AuthService,
-    sessions: Arc<LiveSessionStore>,
-}
-
-#[derive(Default)]
-struct LiveSessionStore {
-    terminals: Mutex<BTreeMap<String, LiveTerminalSession>>,
-    chats: Mutex<BTreeMap<String, LiveChatSession>>,
-}
-
-#[derive(Clone)]
-struct LiveTerminalSession {
-    id: String,
-    instance_id: String,
-    owner: String,
-    output_tx: broadcast::Sender<String>,
-}
-
-#[derive(Clone)]
-struct ChatSseEvent {
-    event_type: String,
-    payload: serde_json::Value,
-}
-
-#[derive(Clone)]
-struct LiveChatSession {
-    id: String,
-    instance_id: String,
-    owner: String,
-    title: String,
-    messages: Vec<GatewayMessage>,
-    events_tx: broadcast::Sender<ChatSseEvent>,
+    sessions: Arc<LiveSessionStore<GatewayMessage>>,
 }
 
 #[derive(Debug)]
@@ -546,20 +516,13 @@ async fn create_terminal_session(
         )));
     }
 
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let (tx, _rx) = broadcast::channel(256);
-    let session = LiveTerminalSession {
-        id: session_id.clone(),
-        instance_id: id,
-        owner,
-        output_tx: tx.clone(),
-    };
+    let session = LiveTerminalSession::new(id.clone(), owner, 256);
+    let session_id = session.id.clone();
+    let tx = session.output_tx.clone();
     state
         .sessions
-        .terminals
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("terminal session lock poisoned: {e}")))?
-        .insert(session_id.clone(), session);
+        .insert_terminal(session)
+        .map_err(ApiError::Internal)?;
 
     let _ = tx.send("Connected to instance terminal.\n".to_string());
     if let Some(command) = request
@@ -600,27 +563,20 @@ async fn execute_terminal_command(
         ));
     }
 
-    let tx = {
-        let sessions = state
-            .sessions
-            .terminals
-            .lock()
-            .map_err(|e| ApiError::Internal(format!("terminal session lock poisoned: {e}")))?;
-        let Some(session) = sessions.get(&terminal_id) else {
-            return Err(ApiError::NotFound(format!(
-                "terminal session not found: {terminal_id}"
-            )));
-        };
-        if session.id != terminal_id
-            || session.instance_id != id
-            || !session.owner.eq_ignore_ascii_case(&owner)
-        {
-            return Err(ApiError::Forbidden(
-                "session is not authorized for this terminal".to_string(),
-            ));
-        }
-        session.output_tx.clone()
-    };
+    let session = state
+        .sessions
+        .get_terminal(&terminal_id)
+        .map_err(ApiError::Internal)?
+        .ok_or_else(|| ApiError::NotFound(format!("terminal session not found: {terminal_id}")))?;
+    if session.id != terminal_id
+        || session.scope_id != id
+        || !session.owner.eq_ignore_ascii_case(&owner)
+    {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this terminal".to_string(),
+        ));
+    }
+    let tx = session.output_tx.clone();
 
     let output = state
         .adapter
@@ -640,7 +596,7 @@ async fn stream_terminal_session(
     headers: HeaderMap,
     Query(query): Query<StreamAuthQuery>,
     Path((id, terminal_id)): Path<(String, String)>,
-) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     let (_, owner) = load_scoped_instance(
         &state,
         &headers,
@@ -648,34 +604,17 @@ async fn stream_terminal_session(
         query.token.as_deref(),
         "operator tokens are not allowed for terminal stream access",
     )?;
-    let rx = {
-        let sessions = state
-            .sessions
-            .terminals
-            .lock()
-            .map_err(|e| ApiError::Internal(format!("terminal session lock poisoned: {e}")))?;
-        let Some(session) = sessions.get(&terminal_id) else {
-            return Err(ApiError::NotFound(format!(
-                "terminal session not found: {terminal_id}"
-            )));
-        };
-        if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
-            return Err(ApiError::Forbidden(
-                "session is not authorized for this terminal".to_string(),
-            ));
-        }
-        session.output_tx.subscribe()
-    };
-
-    let stream = BroadcastStream::new(rx).filter_map(|result| match result {
-        Ok(chunk) => Some(Ok(Event::default().data(chunk))),
-        Err(_) => None,
-    });
-    Ok(Sse::new(stream).keep_alive(
-        KeepAlive::new()
-            .interval(Duration::from_secs(15))
-            .text("keep-alive"),
-    ))
+    let session = state
+        .sessions
+        .get_terminal(&terminal_id)
+        .map_err(ApiError::Internal)?
+        .ok_or_else(|| ApiError::NotFound(format!("terminal session not found: {terminal_id}")))?;
+    if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this terminal".to_string(),
+        ));
+    }
+    Ok(sse_from_terminal_output(session.output_tx.subscribe()))
 }
 
 async fn close_terminal_session(
@@ -692,16 +631,14 @@ async fn close_terminal_session(
     )?;
     let removed = state
         .sessions
-        .terminals
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("terminal session lock poisoned: {e}")))?
-        .remove(&terminal_id);
+        .remove_terminal(&terminal_id)
+        .map_err(ApiError::Internal)?;
     let Some(session) = removed else {
         return Err(ApiError::NotFound(format!(
             "terminal session not found: {terminal_id}"
         )));
     };
-    if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+    if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
         return Err(ApiError::Forbidden(
             "session is not authorized for this terminal".to_string(),
         ));
@@ -775,14 +712,10 @@ async fn list_chat_sessions(
         None,
         "operator tokens are not allowed for session listing",
     )?;
-    let sessions = state
-        .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?;
+    let sessions = state.sessions.list_chats().map_err(ApiError::Internal)?;
     let mut out = sessions
-        .values()
-        .filter(|session| session.instance_id == id && session.owner.eq_ignore_ascii_case(&owner))
+        .iter()
+        .filter(|session| session.scope_id == id && session.owner.eq_ignore_ascii_case(&owner))
         .map(|session| SessionSummary {
             id: session.id.clone(),
             title: session.title.clone(),
@@ -806,7 +739,6 @@ async fn create_chat_session(
         None,
         "operator tokens are not allowed for session creation",
     )?;
-    let session_id = uuid::Uuid::new_v4().to_string();
     let title = request
         .title
         .as_deref()
@@ -814,21 +746,12 @@ async fn create_chat_session(
         .filter(|v| !v.is_empty())
         .unwrap_or("New Chat")
         .to_string();
-    let (events_tx, _events_rx) = broadcast::channel(128);
-    let session = LiveChatSession {
-        id: session_id.clone(),
-        instance_id: id,
-        owner,
-        title: title.clone(),
-        messages: Vec::new(),
-        events_tx,
-    };
+    let session = LiveChatSession::new(id, owner, title.clone(), 128);
+    let session_id = session.id.clone();
     state
         .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?
-        .insert(session_id.clone(), session);
+        .insert_chat(session)
+        .map_err(ApiError::Internal)?;
     Ok(Json(SessionSummary {
         id: session_id,
         title,
@@ -855,27 +778,28 @@ async fn rename_chat_session(
             "session title must not be empty".to_string(),
         ));
     }
-    let mut sessions = state
+    let updated = state
         .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?;
-    let Some(session) = sessions.get_mut(&session_id) else {
+        .update_chat(&session_id, |session| -> Result<SessionSummary, ApiError> {
+            if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+                return Err(ApiError::Forbidden(
+                    "session is not authorized for this chat session".to_string(),
+                ));
+            }
+            session.title = title.to_string();
+            Ok(SessionSummary {
+                id: session.id.clone(),
+                title: session.title.clone(),
+                parent_id: None,
+            })
+        })
+        .map_err(ApiError::Internal)?;
+    let Some(summary) = updated else {
         return Err(ApiError::NotFound(format!(
             "chat session not found: {session_id}"
         )));
     };
-    if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
-        return Err(ApiError::Forbidden(
-            "session is not authorized for this chat session".to_string(),
-        ));
-    }
-    session.title = title.to_string();
-    Ok(Json(SessionSummary {
-        id: session.id.clone(),
-        title: session.title.clone(),
-        parent_id: None,
-    }))
+    Ok(Json(summary?))
 }
 
 async fn delete_chat_session(
@@ -892,16 +816,14 @@ async fn delete_chat_session(
     )?;
     let removed = state
         .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?
-        .remove(&session_id);
+        .remove_chat(&session_id)
+        .map_err(ApiError::Internal)?;
     let Some(session) = removed else {
         return Err(ApiError::NotFound(format!(
             "chat session not found: {session_id}"
         )));
     };
-    if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+    if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
         return Err(ApiError::Forbidden(
             "session is not authorized for this chat session".to_string(),
         ));
@@ -922,17 +844,16 @@ async fn get_session_messages(
         None,
         "operator tokens are not allowed for session messages",
     )?;
-    let sessions = state
+    let Some(session) = state
         .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?;
-    let Some(session) = sessions.get(&session_id) else {
+        .get_chat(&session_id)
+        .map_err(ApiError::Internal)?
+    else {
         return Err(ApiError::NotFound(format!(
             "chat session not found: {session_id}"
         )));
     };
-    if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+    if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
         return Err(ApiError::Forbidden(
             "session is not authorized for this chat session".to_string(),
         ));
@@ -987,47 +908,49 @@ async fn send_session_message(
         format!("command completed with exit code {}", output.exit_code)
     };
 
-    let mut sessions = state
+    let updated = state
         .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?;
-    let Some(session) = sessions.get_mut(&session_id) else {
+        .update_chat(&session_id, |session| -> Result<(), ApiError> {
+            if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+                return Err(ApiError::Forbidden(
+                    "session is not authorized for this chat session".to_string(),
+                ));
+            }
+
+            let user_message = gateway_text_message("user", &prompt);
+            session.messages.push(user_message);
+
+            let assistant_message = gateway_text_message("assistant", &assistant_text);
+            let assistant_message_id = assistant_message.info.id.clone();
+            session.messages.push(assistant_message);
+
+            let _ = session.events_tx.send(LiveJsonEvent {
+                event_type: "message.updated".to_string(),
+                payload: serde_json::json!({
+                    "id": assistant_message_id,
+                    "role": "assistant"
+                }),
+            });
+            let _ = session.events_tx.send(LiveJsonEvent {
+                event_type: "message.part.updated".to_string(),
+                payload: serde_json::json!({
+                    "type": "text",
+                    "text": assistant_text
+                }),
+            });
+            let _ = session.events_tx.send(LiveJsonEvent {
+                event_type: "session.idle".to_string(),
+                payload: serde_json::json!({}),
+            });
+            Ok(())
+        })
+        .map_err(ApiError::Internal)?;
+    let Some(result) = updated else {
         return Err(ApiError::NotFound(format!(
             "chat session not found: {session_id}"
         )));
     };
-    if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
-        return Err(ApiError::Forbidden(
-            "session is not authorized for this chat session".to_string(),
-        ));
-    }
-
-    let user_message = gateway_text_message("user", &prompt);
-    session.messages.push(user_message);
-
-    let assistant_message = gateway_text_message("assistant", &assistant_text);
-    let assistant_message_id = assistant_message.info.id.clone();
-    session.messages.push(assistant_message);
-
-    let _ = session.events_tx.send(ChatSseEvent {
-        event_type: "message.updated".to_string(),
-        payload: serde_json::json!({
-            "id": assistant_message_id,
-            "role": "assistant"
-        }),
-    });
-    let _ = session.events_tx.send(ChatSseEvent {
-        event_type: "message.part.updated".to_string(),
-        payload: serde_json::json!({
-            "type": "text",
-            "text": assistant_text
-        }),
-    });
-    let _ = session.events_tx.send(ChatSseEvent {
-        event_type: "session.idle".to_string(),
-        payload: serde_json::json!({}),
-    });
+    result?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -1044,22 +967,21 @@ async fn abort_session_message(
         None,
         "operator tokens are not allowed for session abort",
     )?;
-    let sessions = state
+    let Some(session) = state
         .sessions
-        .chats
-        .lock()
-        .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?;
-    let Some(session) = sessions.get(&session_id) else {
+        .get_chat(&session_id)
+        .map_err(ApiError::Internal)?
+    else {
         return Err(ApiError::NotFound(format!(
             "chat session not found: {session_id}"
         )));
     };
-    if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+    if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
         return Err(ApiError::Forbidden(
             "session is not authorized for this chat session".to_string(),
         ));
     }
-    let _ = session.events_tx.send(ChatSseEvent {
+    let _ = session.events_tx.send(LiveJsonEvent {
         event_type: "session.idle".to_string(),
         payload: serde_json::json!({}),
     });
@@ -1071,7 +993,7 @@ async fn stream_session_events(
     headers: HeaderMap,
     Query(query): Query<SessionEventsQuery>,
     Path(id): Path<String>,
-) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     let (_, owner) = load_scoped_instance(
         &state,
         &headers,
@@ -1079,40 +1001,22 @@ async fn stream_session_events(
         query.token.as_deref(),
         "operator tokens are not allowed for session stream access",
     )?;
-    let rx = {
-        let sessions = state
-            .sessions
-            .chats
-            .lock()
-            .map_err(|e| ApiError::Internal(format!("chat session lock poisoned: {e}")))?;
-        let Some(session) = sessions.get(&query.session_id) else {
-            return Err(ApiError::NotFound(format!(
-                "chat session not found: {}",
-                query.session_id
-            )));
-        };
-        if session.instance_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
-            return Err(ApiError::Forbidden(
-                "session is not authorized for this chat session".to_string(),
-            ));
-        }
-        session.events_tx.subscribe()
+    let Some(session) = state
+        .sessions
+        .get_chat(&query.session_id)
+        .map_err(ApiError::Internal)?
+    else {
+        return Err(ApiError::NotFound(format!(
+            "chat session not found: {}",
+            query.session_id
+        )));
     };
-
-    let stream = BroadcastStream::new(rx).filter_map(|result| match result {
-        Ok(event) => {
-            let rendered = Event::default()
-                .event(event.event_type)
-                .data(event.payload.to_string());
-            Some(Ok(rendered))
-        }
-        Err(_) => None,
-    });
-    Ok(Sse::new(stream).keep_alive(
-        KeepAlive::new()
-            .interval(Duration::from_secs(15))
-            .text("keep-alive"),
-    ))
+    if session.scope_id != id || !session.owner.eq_ignore_ascii_case(&owner) {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this chat session".to_string(),
+        ));
+    }
+    Ok(sse_from_json_events(session.events_tx.subscribe()))
 }
 
 fn gateway_text_message(role: &str, text: &str) -> GatewayMessage {
@@ -1284,14 +1188,11 @@ fn authorize(auth: &AuthService, headers: &HeaderMap) -> Result<SessionClaims, A
     let raw = raw
         .to_str()
         .map_err(|_| ApiError::Unauthorized("invalid Authorization header".to_string()))?;
-    let mut parts = raw.splitn(2, ' ');
-    let scheme = parts.next().unwrap_or_default();
-    let token = parts.next().unwrap_or_default();
-    if !scheme.eq_ignore_ascii_case("bearer") {
+    let Some(token) = extract_bearer_token(raw) else {
         return Err(ApiError::Unauthorized(
             "Authorization must use Bearer token".to_string(),
         ));
-    }
+    };
     auth.resolve_bearer(token.trim())
         .ok_or_else(|| ApiError::Unauthorized("invalid or expired bearer token".to_string()))
 }
