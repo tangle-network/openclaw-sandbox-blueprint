@@ -45,11 +45,37 @@ async function getJson(path, options = {}) {
   return body;
 }
 
-async function postJob(type, payload) {
-  return getJson(`/jobs/${type}`, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+function parseByteSequence(raw) {
+  const trimmed = `${raw ?? ""}`.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      throw new Error("Expected JSON array for byte sequence.");
+    }
+    return parsed.map((value) => {
+      const num = Number(value);
+      if (!Number.isInteger(num) || num < 0 || num > 255) {
+        throw new Error(`Invalid byte value: ${value}`);
+      }
+      return num;
+    });
+  }
+
+  const noPrefix = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
+  if (!/^[0-9a-fA-F]*$/.test(noPrefix) || noPrefix.length % 2 !== 0) {
+    throw new Error(
+      "Byte sequence must be JSON array or even-length hex string (optionally 0x-prefixed)."
+    );
+  }
+  const out = [];
+  for (let i = 0; i < noPrefix.length; i += 2) {
+    out.push(Number.parseInt(noPrefix.slice(i, i + 2), 16));
+  }
+  return out;
 }
 
 async function loadTemplates() {
@@ -92,7 +118,8 @@ async function renderInstances() {
     const localUi = runtime.uiLocalUrl ?? "n/a";
     const secured = runtime.hasUiBearerToken ? "secured" : "unsecured";
     const details = document.createElement("span");
-    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl} - local: ${localUi} - setup: ${setupStatus} - ${secured}`;
+    const executionTarget = instance.executionTarget ?? "standard";
+    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - target: ${executionTarget} - UI: ${publicUrl} - local: ${localUi} - setup: ${setupStatus} - ${secured}`;
     li.append(details);
 
     const actions = document.createElement("span");
@@ -116,26 +143,13 @@ async function renderInstances() {
       if (label === "delete" && instance.status === "deleted") {
         button.disabled = true;
       }
+      button.disabled = true;
+      button.title = "Lifecycle job submission is on-chain only and not exposed via operator API.";
       button.addEventListener("click", async () => {
-        if (label === "delete") {
-          const confirmed = window.confirm(
-            `Delete instance ${instance.name}? This action cannot be undone.`
-          );
-          if (!confirmed) {
-            return;
-          }
-        }
-
-        try {
-          button.disabled = true;
-          await postJob(job, { instance_id: instance.id });
-          await renderInstances();
-          setStatus(`Instance action succeeded: ${label}.`);
-        } catch (error) {
-          setStatus(`Action failed (${label}): ${error.message}`, true);
-        } finally {
-          button.disabled = false;
-        }
+        setStatus(
+          `Lifecycle action '${label}' is on-chain only. Use Tangle job submission for ${job}.`,
+          true
+        );
       });
       actions.append(button);
     }
@@ -186,6 +200,123 @@ async function renderInstances() {
       }
     });
     actions.append(setupButton);
+
+    const teePublicKeyButton = document.createElement("button");
+    teePublicKeyButton.type = "button";
+    teePublicKeyButton.textContent = "tee-public-key";
+    teePublicKeyButton.style.marginLeft = "4px";
+    teePublicKeyButton.disabled = executionTarget !== "tee";
+    if (executionTarget !== "tee") {
+      teePublicKeyButton.title = "Only available for TEE-targeted instances.";
+    }
+    teePublicKeyButton.addEventListener("click", async () => {
+      try {
+        teePublicKeyButton.disabled = true;
+        const result = await getJson(`/instances/${instance.id}/tee/public-key`);
+        const payload = result?.publicKey ?? {};
+        const lines = [
+          `Instance: ${result?.instanceId ?? instance.id}`,
+          `Algorithm: ${payload.algorithm ?? "n/a"}`,
+          `Public key bytes: ${JSON.stringify(payload.publicKeyBytes ?? [])}`,
+          `Attestation tee_type: ${payload?.attestation?.tee_type ?? "n/a"}`,
+          `Attestation measurement bytes: ${JSON.stringify(payload?.attestation?.measurement ?? [])}`
+        ];
+        window.alert(lines.join("\n"));
+        setStatus("Fetched TEE public key.");
+      } catch (error) {
+        setStatus(`TEE public key failed: ${error.message}`, true);
+      } finally {
+        teePublicKeyButton.disabled = executionTarget !== "tee";
+      }
+    });
+    actions.append(teePublicKeyButton);
+
+    const teeAttestationButton = document.createElement("button");
+    teeAttestationButton.type = "button";
+    teeAttestationButton.textContent = "tee-attestation";
+    teeAttestationButton.style.marginLeft = "4px";
+    teeAttestationButton.disabled = executionTarget !== "tee";
+    if (executionTarget !== "tee") {
+      teeAttestationButton.title = "Only available for TEE-targeted instances.";
+    }
+    teeAttestationButton.addEventListener("click", async () => {
+      try {
+        teeAttestationButton.disabled = true;
+        const result = await getJson(`/instances/${instance.id}/tee/attestation`);
+        window.alert(JSON.stringify(result, null, 2));
+        setStatus("Fetched TEE attestation.");
+      } catch (error) {
+        setStatus(`TEE attestation failed: ${error.message}`, true);
+      } finally {
+        teeAttestationButton.disabled = executionTarget !== "tee";
+      }
+    });
+    actions.append(teeAttestationButton);
+
+    const teeSealedButton = document.createElement("button");
+    teeSealedButton.type = "button";
+    teeSealedButton.textContent = "tee-sealed";
+    teeSealedButton.style.marginLeft = "4px";
+    teeSealedButton.disabled = executionTarget !== "tee";
+    if (executionTarget !== "tee") {
+      teeSealedButton.title = "Only available for TEE-targeted instances.";
+    }
+    teeSealedButton.addEventListener("click", async () => {
+      const algorithm = window.prompt(
+        "Sealed secret algorithm",
+        "x25519-xsalsa20-poly1305"
+      );
+      if (!algorithm || !algorithm.trim()) {
+        return;
+      }
+
+      const ciphertextRaw = window.prompt(
+        "Ciphertext bytes (JSON array like [1,2,3] or hex like 0x010203)",
+        ""
+      );
+      if (!ciphertextRaw || !ciphertextRaw.trim()) {
+        return;
+      }
+
+      const nonceRaw = window.prompt(
+        "Nonce bytes (JSON array like [1,2,3] or hex like 0x010203)",
+        ""
+      );
+      if (!nonceRaw || !nonceRaw.trim()) {
+        return;
+      }
+
+      let ciphertext;
+      let nonce;
+      try {
+        ciphertext = parseByteSequence(ciphertextRaw);
+        nonce = parseByteSequence(nonceRaw);
+      } catch (error) {
+        setStatus(`Invalid sealed-secret bytes: ${error.message}`, true);
+        return;
+      }
+
+      try {
+        teeSealedButton.disabled = true;
+        const result = await getJson(`/instances/${instance.id}/tee/sealed-secrets`, {
+          method: "POST",
+          body: JSON.stringify({
+            sealedSecret: {
+              algorithm: algorithm.trim(),
+              ciphertext,
+              nonce
+            }
+          })
+        });
+        window.alert(JSON.stringify(result, null, 2));
+        setStatus("Sent sealed secrets payload to TEE instance.");
+      } catch (error) {
+        setStatus(`TEE sealed-secrets failed: ${error.message}`, true);
+      } finally {
+        teeSealedButton.disabled = executionTarget !== "tee";
+      }
+    });
+    actions.append(teeSealedButton);
 
     const accessButton = document.createElement("button");
     accessButton.type = "button";
@@ -397,32 +528,10 @@ document.querySelector("#wallet-verify-form").addEventListener("submit", async (
 
 document.querySelector("#launch-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  const config = {
-    claw_variant: formData.get("clawVariant"),
-    ui: {
-      expose_public_url: true,
-      auth_mode: formData.get("uiAuthMode")
-    }
-  };
-  const subdomain = `${formData.get("uiSubdomain") ?? ""}`.trim();
-  if (subdomain.length > 0) {
-    config.ui.subdomain = subdomain;
-  }
-
-  try {
-    await postJob("create-instance", {
-      name: formData.get("name"),
-      template_pack_id: formData.get("templatePackId"),
-      config_json: JSON.stringify(config)
-    });
-    event.currentTarget.reset();
-    await loadTemplates();
-    await renderInstances();
-    setStatus("Instance launched.");
-  } catch (error) {
-    setStatus(`Launch failed: ${error.message}`, true);
-  }
+  setStatus(
+    "Instance creation is on-chain only. Submit create/start/stop/delete via Tangle jobs, then use this UI for owner-scoped setup, terminal, chat, SSH, and TEE secret/attestation flows.",
+    true
+  );
 });
 
 document.querySelector("#bearer-token").value = currentToken();
