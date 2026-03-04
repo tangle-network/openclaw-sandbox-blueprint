@@ -7978,7 +7978,7 @@ dependencies = [
 [[package]]
 name = "sandbox-runtime"
 version = "0.1.0"
-source = "git+https://github.com/tangle-network/ai-agent-sandbox-blueprint.git?rev=4c63322#4c633227717ae3185e80299682060f7ef2e8c663"
+source = "git+https://github.com/tangle-network/ai-agent-sandbox-blueprint.git?rev=e4a8ea2#e4a8ea273acac58629fe78398b627dde6fb78535"
 dependencies = [
  "alloy",
  "async-trait",
