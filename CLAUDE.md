@@ -19,8 +19,8 @@ explicitly required by a live production dependency.
     interactive auth prompts.
 - `nanoclaw` upstream `container/build.sh` image (`nanoclaw-agent:*`)
   - is a stdin-driven one-shot runner, not a hosted long-running service image.
-  - runtime now injects a hosted bridge command profile by default so provisioned
-    instances stay reachable with owner-scoped auth.
+  - runtime now uses a terminal-first long-lived profile for hosted instances
+    (no native NanoClaw web UI assumption).
 
 ## Do
 

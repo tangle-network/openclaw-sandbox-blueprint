@@ -41,10 +41,10 @@ disambiguation baseline for product/runtime mappings.
   - no official hosted-service image verified from upstream
   - upstream `container/build.sh` image (`nanoclaw-agent:*`) is a stdin-driven
     agent-runner image and exits immediately without JSON input
-  - this blueprint applies a default hosted bridge command for `nanoclaw-agent:*`
-    (minimal token-gated UI on `18789`) so instance startup and owner-scoped setup
-    surfaces remain reachable
-  - operators can still override the hosted command profile using
+  - this blueprint defaults `nanoclaw-agent:*` to a long-lived terminal-first
+    runtime profile (`tail -f /dev/null` with shell entrypoint override)
+  - canonical setup path is owner-scoped terminal/chat (`claude` then `/setup`)
+  - operators can still override runtime command profile using
     `OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND`
 - `ironclaw`
   - confirmed public worker image: `nearaidev/ironclaw-nearai-worker:latest`

@@ -48,9 +48,6 @@ fn docker_real_variant_runtime_matrix() {
         std::env::set_var("OPENCLAW_DOCKER_PULL", "false");
         std::env::set_var("OPENCLAW_AUTO_TRIGGER_SETUP", "false");
         std::env::set_var("OPENCLAW_DOCKER_STARTUP_STABILIZE_MS", "1500");
-        if include_nanoclaw {
-            std::env::set_var("OPENCLAW_VARIANT_NANOCLAW_UI_PORT", "18789");
-        }
         if std::env::var("NEARAI_API_KEY").is_err()
             && std::env::var("NEARAI_SESSION_TOKEN").is_err()
         {
@@ -93,23 +90,33 @@ fn docker_real_variant_runtime_matrix() {
         adapter.save_instance(record.clone()).expect("save record");
 
         let refreshed = adapter.refresh_instance(record.clone()).expect("refresh");
-        let ui_url = refreshed
-            .runtime
-            .ui_local_url
-            .clone()
-            .expect("ui local url should exist");
         let container_ref = refreshed
             .runtime
             .container_id
             .clone()
             .or_else(|| refreshed.runtime.container_name.clone());
-        wait_for_http_ok(
-            &ui_url,
-            refreshed.runtime.ui_bearer_token.as_deref(),
-            Duration::from_secs(ui_timeout_secs),
-            &variant,
-            container_ref.as_deref(),
-        );
+        if variant != ClawVariant::Nanoclaw {
+            let ui_url = refreshed
+                .runtime
+                .ui_local_url
+                .clone()
+                .expect("ui local url should exist for non-nanoclaw variants");
+            wait_for_http_ok(
+                &ui_url,
+                refreshed.runtime.ui_bearer_token.as_deref(),
+                Duration::from_secs(ui_timeout_secs),
+                &variant,
+                container_ref.as_deref(),
+            );
+        } else {
+            let image = refreshed.runtime.image.clone().unwrap_or_default();
+            if image.contains("nanoclaw-agent") {
+                assert!(
+                    refreshed.runtime.ui_local_url.is_none(),
+                    "nanoclaw runner profile should default to terminal-first without hosted UI"
+                );
+            }
+        }
 
         let version_cmd = match variant {
             ClawVariant::Openclaw => "openclaw --version",

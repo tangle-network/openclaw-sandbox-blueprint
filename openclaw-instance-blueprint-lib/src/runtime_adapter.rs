@@ -228,24 +228,18 @@ impl DockerRuntimeAdapter {
         if let Some(port) = self.ui_port_override(variant)? {
             return Ok(Some(port));
         }
+        if *variant == ClawVariant::Nanoclaw && image.contains("nanoclaw-agent") {
+            return Ok(None);
+        }
 
-        let mut discovered = match inspect_image_exposed_ports(image) {
-            Ok(ports) => ports,
-            Err(err) if *variant == ClawVariant::Nanoclaw && image.contains("nanoclaw-agent") => {
-                // NanoClaw upstream build image does not declare ExposedPorts and may not
-                // exist locally in unit tests. Hosted bridge profile still binds 18789.
-                let _ = err;
-                Vec::new()
-            }
-            Err(err) => return Err(err),
-        };
+        let mut discovered = inspect_image_exposed_ports(image)?;
         discovered.sort_unstable();
         discovered.dedup();
         if !discovered.is_empty() {
             let preferred = match variant {
                 ClawVariant::Openclaw => Some(18789),
                 ClawVariant::Ironclaw => Some(18789),
-                ClawVariant::Nanoclaw => Some(18789),
+                ClawVariant::Nanoclaw => None,
             };
             if let Some(port) = preferred
                 && discovered.contains(&port)
@@ -258,13 +252,7 @@ impl DockerRuntimeAdapter {
         match variant {
             ClawVariant::Openclaw => Ok(Some(18789)),
             ClawVariant::Ironclaw => Ok(Some(18789)),
-            ClawVariant::Nanoclaw => {
-                if image.contains("nanoclaw-agent") {
-                    Ok(Some(18789))
-                } else {
-                    Ok(None)
-                }
-            }
+            ClawVariant::Nanoclaw => Ok(None),
         }
     }
 
@@ -314,7 +302,9 @@ impl DockerRuntimeAdapter {
         }
 
         if *variant == ClawVariant::Nanoclaw && image.contains("nanoclaw-agent") {
-            return Some(nanoclaw_hosted_bridge_command());
+            // Upstream NanoClaw container image is a stdin one-shot runner. Keep instance
+            // long-lived for owner-scoped terminal/chat driven setup flows.
+            return Some("tail -f /dev/null".to_string());
         }
 
         None
@@ -1225,35 +1215,6 @@ fn product_variant(variant: &ClawVariant) -> ClawProductVariant {
     }
 }
 
-fn nanoclaw_hosted_bridge_command() -> String {
-    r#"cat >/tmp/openclaw-nanoclaw-bridge.js <<'NODE'
-const http = require("http");
-const token = process.env.SANDBOX_UI_BEARER_TOKEN || process.env.OPENCLAW_GATEWAY_TOKEN || "";
-const port = Number(process.env.OPENCLAW_VARIANT_NANOCLAW_UI_PORT || process.env.PORT || 18789);
-const html = `<!doctype html><html><head><meta charset="utf-8"/><title>NanoClaw Hosted Bridge</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;line-height:1.45}code{background:#f3f3f3;padding:.1rem .35rem;border-radius:.25rem}</style></head><body><h1>NanoClaw Instance Ready</h1><p>This hosted profile keeps the NanoClaw container reachable for owner-scoped setup and command flows.</p><p>Use the operator control-plane for terminal/chat setup and runtime actions.</p><p>Health endpoint: <code>/healthz</code></p></body></html>`;
-const server = http.createServer((req, res) => {
-  if (req.url === "/healthz") {
-    res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-    res.end("ok");
-    return;
-  }
-  if (token) {
-    const auth = req.headers.authorization || "";
-    if (auth !== `Bearer ${token}`) {
-      res.writeHead(401, { "content-type": "text/plain; charset=utf-8" });
-      res.end("unauthorized");
-      return;
-    }
-  }
-  res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-  res.end(html);
-});
-server.listen(port, "0.0.0.0");
-setInterval(() => {}, 1 << 30);
-NODE
-exec node /tmp/openclaw-nanoclaw-bridge.js"#.to_string()
-}
-
 fn run_docker(args: &[String]) -> Result<String> {
     let output = Command::new("docker")
         .args(args)
@@ -1456,7 +1417,7 @@ mod tests {
     }
 
     #[test]
-    fn nanoclaw_agent_image_uses_hosted_bridge_command() {
+    fn nanoclaw_agent_image_uses_long_lived_terminal_command() {
         let adapter = DockerRuntimeAdapter {
             images: DockerImages {
                 openclaw: "a".to_string(),
@@ -1468,9 +1429,8 @@ mod tests {
         };
         let cmd = adapter
             .container_command_for_variant(&ClawVariant::Nanoclaw, "nanoclaw-agent:latest")
-            .expect("nanoclaw hosted bridge command");
-        assert!(cmd.contains("openclaw-nanoclaw-bridge.js"));
-        assert!(cmd.contains("SANDBOX_UI_BEARER_TOKEN"));
+            .expect("nanoclaw long-lived command");
+        assert_eq!(cmd, "tail -f /dev/null");
     }
 
     #[test]
@@ -1579,11 +1539,11 @@ mod tests {
                 None,
                 &[],
             )
-            .expect("nanoclaw hosted bridge command should satisfy prereq");
+            .expect("nanoclaw terminal-first runtime profile should satisfy prereq");
     }
 
     #[test]
-    fn resolve_ui_port_defaults_to_bridge_port_for_nanoclaw_agent() {
+    fn resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images() {
         let adapter = DockerRuntimeAdapter {
             images: DockerImages {
                 openclaw: "a".to_string(),
@@ -1593,10 +1553,21 @@ mod tests {
             auto_pull: false,
             auto_trigger_setup: false,
         };
-        let port = adapter
+        let default_port = adapter
             .resolve_ui_port(&ClawVariant::Nanoclaw, "nanoclaw-agent:latest")
             .expect("ui port resolve");
-        assert_eq!(port, Some(18789));
+        assert_eq!(default_port, None);
+
+        unsafe {
+            std::env::set_var("OPENCLAW_VARIANT_NANOCLAW_UI_PORT", "18080");
+        }
+        let override_port = adapter
+            .resolve_ui_port(&ClawVariant::Nanoclaw, "nanoclaw-agent:latest")
+            .expect("ui port resolve");
+        assert_eq!(override_port, Some(18080));
+        unsafe {
+            std::env::remove_var("OPENCLAW_VARIANT_NANOCLAW_UI_PORT");
+        }
     }
 
     #[test]

@@ -201,7 +201,7 @@ Behavior:
 - UI port mapping defaults:
   - OpenClaw: `18789`
   - IronClaw: `18789`
-  - NanoClaw: inferred from image metadata or explicit env override
+  - NanoClaw: none by default (terminal-first profile), or explicit env override
 - per-variant UI port override: `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_UI_PORT`
 - per-variant startup command override (runs as `sh -lc <command>`):
   - `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_CONTAINER_COMMAND`
@@ -242,11 +242,11 @@ Real-image runtime notes:
   The runtime applies a host-reachable startup command automatically for this image.
 - official IronClaw worker image requires non-interactive auth env to avoid startup prompts.
   Provide `NEARAI_API_KEY` or `NEARAI_SESSION_TOKEN` in the runner host env.
-- NanoClaw upstream `container/build.sh` image is an agent-runner image. The runtime
-  now applies a secure hosted bridge command profile for `nanoclaw-agent:*` by
-  default (token-gated minimal UI on port `18789`) so instance provisioning and
-  owner-scoped setup surfaces stay reachable. You can still override with
-  `OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND`.
+- NanoClaw upstream `container/build.sh` image is a one-shot agent-runner image.
+  The runtime defaults `nanoclaw-agent:*` to a long-lived terminal-first profile
+  (`tail -f /dev/null` with shell entrypoint override) so owners can complete
+  canonical setup (`claude` then `/setup`) through scoped terminal/chat surfaces.
+  You can override this via `OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND`.
 
 Agent UI compatibility:
 
@@ -258,7 +258,6 @@ Agent UI compatibility:
 
 - Containers are bound to loopback only (`127.0.0.1` port mapping), not exposed directly on public interfaces.
 - Each Docker instance receives a unique bearer token under canonical env key `SANDBOX_UI_BEARER_TOKEN`.
-- NanoClaw hosted bridge profile enforces the per-instance bearer token at HTTP surface level.
 - Operator API setup execution is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
 - UI token retrieval is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
 - Setup env keys are validated and only injected for the setup execution call; they are not persisted in instance state.
