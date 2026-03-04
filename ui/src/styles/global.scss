@@ -1,0 +1,91 @@
+@use './variables';
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    margin: 0;
+    min-height: 100%;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    background: var(--claw-elements-bg-depth-1);
+    color: var(--claw-elements-textPrimary);
+    line-height: 1.5;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  ::selection {
+    background: rgba(46, 196, 182, 0.22);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--claw-elements-focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+.bg-mesh {
+  position: relative;
+}
+
+.bg-mesh::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 45% at 8% 0%, var(--mesh-cyan), transparent),
+    radial-gradient(ellipse 70% 40% at 90% 10%, var(--mesh-blue), transparent),
+    radial-gradient(ellipse 70% 50% at 50% 100%, var(--mesh-amber), transparent);
+  z-index: 0;
+}
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--claw-elements-dividerColor);
+  border-radius: 99px;
+}
+
+.font-display {
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+
+.font-data {
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+}

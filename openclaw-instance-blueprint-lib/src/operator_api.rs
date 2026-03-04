@@ -9,6 +9,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
+use include_dir::{Dir, include_dir};
 use sandbox_runtime::live_operator_sessions::{
     LiveChatSession, LiveJsonEvent, LiveSessionStore, LiveTerminalSession, sse_from_json_events,
     sse_from_terminal_output,
@@ -282,9 +283,7 @@ struct SendChatMessagePart {
     text: Option<String>,
 }
 
-const CONTROL_PLANE_INDEX_HTML: &str = include_str!("../../control-plane-ui/index.html");
-const CONTROL_PLANE_APP_JS: &str = include_str!("../../control-plane-ui/app.js");
-const CONTROL_PLANE_STYLES_CSS: &str = include_str!("../../control-plane-ui/styles.css");
+static CONTROL_PLANE_UI_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../control-plane-ui");
 
 pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch::Receiver<()>) {
     let state = ApiState {
@@ -297,6 +296,7 @@ pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch
         .route("/", get(control_plane_index))
         .route("/app.js", get(control_plane_app_js))
         .route("/styles.css", get(control_plane_styles_css))
+        .route("/assets/{*path}", get(control_plane_assets))
         .route("/health", get(health))
         .route("/templates", get(templates))
         .route("/instances", get(instances))
@@ -364,27 +364,68 @@ async fn health() -> Json<HealthResponse> {
 }
 
 async fn control_plane_index() -> Response {
-    static_asset("text/html; charset=utf-8", CONTROL_PLANE_INDEX_HTML)
+    static_asset_path("index.html")
 }
 
 async fn control_plane_app_js() -> Response {
-    static_asset(
-        "application/javascript; charset=utf-8",
-        CONTROL_PLANE_APP_JS,
-    )
+    static_asset_path("app.js")
 }
 
 async fn control_plane_styles_css() -> Response {
-    static_asset("text/css; charset=utf-8", CONTROL_PLANE_STYLES_CSS)
+    static_asset_path("styles.css")
 }
 
-fn static_asset(content_type: &'static str, body: &'static str) -> Response {
+async fn control_plane_assets(Path(path): Path<String>) -> Response {
+    let normalized = path.trim_start_matches('/');
+    let full_path = format!("assets/{normalized}");
+    static_asset_path(&full_path)
+}
+
+fn static_asset_path(path: &str) -> Response {
+    let Some(file) = CONTROL_PLANE_UI_DIR.get_file(path) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": {
+                    "code": "not_found",
+                    "message": format!("control-plane asset not found: {path}"),
+                }
+            })),
+        )
+            .into_response();
+    };
+    static_asset(content_type_for_path(path), file.contents())
+}
+
+fn static_asset(content_type: &'static str, body: &'static [u8]) -> Response {
     (
         [(header::CONTENT_TYPE, content_type)],
         [(header::CACHE_CONTROL, "no-store")],
         body,
     )
         .into_response()
+}
+
+fn content_type_for_path(path: &str) -> &'static str {
+    if path.ends_with(".html") {
+        "text/html; charset=utf-8"
+    } else if path.ends_with(".css") {
+        "text/css; charset=utf-8"
+    } else if path.ends_with(".js") || path.ends_with(".mjs") {
+        "application/javascript; charset=utf-8"
+    } else if path.ends_with(".json") {
+        "application/json; charset=utf-8"
+    } else if path.ends_with(".svg") {
+        "image/svg+xml"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if path.ends_with(".webp") {
+        "image/webp"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 async fn templates() -> Result<Json<TemplatesResponse>, ApiError> {
@@ -1913,5 +1954,49 @@ mod tests {
             }
             other => panic!("expected bad request, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn control_plane_index_asset_is_embedded() {
+        let response = static_asset_path("index.html");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/html; charset=utf-8")
+        );
+    }
+
+    #[test]
+    fn control_plane_assets_include_at_least_one_chunk_file() {
+        let asset_dir = CONTROL_PLANE_UI_DIR
+            .get_dir("assets")
+            .expect("embedded control-plane assets directory");
+        let first_asset = asset_dir
+            .files()
+            .next()
+            .expect("embedded control-plane chunk file");
+        let asset_path = first_asset
+            .path()
+            .to_str()
+            .expect("utf8 control-plane asset path");
+
+        let response = static_asset_path(asset_path);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|v| v.to_str().ok()),
+            Some("no-store")
+        );
+    }
+
+    #[test]
+    fn missing_control_plane_asset_returns_not_found() {
+        let response = static_asset_path("assets/does-not-exist.js");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

@@ -1,2 +1,4 @@
 /target
 CODEX_*
+ui/node_modules
+ui/dist
