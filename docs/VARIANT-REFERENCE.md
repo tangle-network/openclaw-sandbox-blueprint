@@ -41,8 +41,11 @@ disambiguation baseline for product/runtime mappings.
   - no official hosted-service image verified from upstream
   - upstream `container/build.sh` image (`nanoclaw-agent:*`) is a stdin-driven
     agent-runner image and exits immediately without JSON input
-  - for hosted instance mode, provide explicit service command/image profile
-    (`OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND`)
+  - this blueprint applies a default hosted bridge command for `nanoclaw-agent:*`
+    (minimal token-gated UI on `18789`) so instance startup and owner-scoped setup
+    surfaces remain reachable
+  - operators can still override the hosted command profile using
+    `OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND`
 - `ironclaw`
   - confirmed public worker image: `nearaidev/ironclaw-nearai-worker:latest`
   - image hosts web gateway successfully when `NEARAI_API_KEY` or

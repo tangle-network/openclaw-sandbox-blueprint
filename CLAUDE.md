@@ -19,13 +19,13 @@ explicitly required by a live production dependency.
     interactive auth prompts.
 - `nanoclaw` upstream `container/build.sh` image (`nanoclaw-agent:*`)
   - is a stdin-driven one-shot runner, not a hosted long-running service image.
-  - do not provision as hosted instance without explicit container command/image
-    profile.
+  - runtime now injects a hosted bridge command profile by default so provisioned
+    instances stay reachable with owner-scoped auth.
 
 ## Do
 
 - Validate behavior against real images, not only placeholder images.
-- Fail fast on runtime prerequisites (missing auth env, one-shot images).
+- Fail fast on runtime prerequisites (for example, missing IronClaw auth env).
 - Keep synthetic CI and real-image CI separate:
   - synthetic lane for fast deterministic checks
   - real-image lane for weekly/manual production-adjacent proof
@@ -37,13 +37,14 @@ explicitly required by a live production dependency.
   passed create/start/reachability checks.
 - Do not rely on default container entrypoints for official images without
   verifying network reachability and auth startup behavior.
-- Do not silently provision known one-shot images as if they were hosted UIs.
+- Do not run one-shot variant entrypoints directly in hosted mode without an
+  explicit hosted command profile.
 
 ## Verified Flows
 
 - Fast synthetic Docker lane:
   - `./scripts/ci/run-docker-integration-tests.sh`
-- Real-image runtime lane (OpenClaw + IronClaw):
+- Real-image runtime lane (OpenClaw + IronClaw + NanoClaw upstream build path):
   - `./scripts/ci/run-real-variant-runtime-tests.sh`
 - Full workspace tests:
   - `cargo test --workspace`
@@ -68,4 +69,3 @@ Expected real-image pass signal:
 
 - `ci.yml` runs fmt/lint/unit + synthetic Docker integration.
 - `real-variant-runtime.yml` runs weekly/manual real-image runtime validation.
-

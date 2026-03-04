@@ -38,4 +38,6 @@ jobs:
         env:
           OPENCLAW_IMAGE_OPENCLAW: ghcr.io/openclaw/openclaw:latest
           OPENCLAW_IMAGE_IRONCLAW: nearaidev/ironclaw-nearai-worker:latest
+          OPENCLAW_REAL_INCLUDE_NANOCLAW: "true"
+          OPENCLAW_REAL_UI_TIMEOUT_SECS: "150"
         run: ./scripts/ci/run-real-variant-runtime-tests.sh
