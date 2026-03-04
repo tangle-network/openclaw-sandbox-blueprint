@@ -30,7 +30,7 @@ import {
 } from '@tangle-network/blueprint-ui/components';
 import { cn } from '@tangle-network/blueprint-ui';
 import { encodeAbiParameters, formatUnits, isAddress } from 'viem';
-import { useAccount, useBalance, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { useAccount, useBalance, useConnect, useDisconnect, useSignMessage, useSwitchChain } from 'wagmi';
 import { toast } from 'sonner';
 import {
   createSessionFromAccessToken,
@@ -63,6 +63,7 @@ import ironclawArt from '~/assets/variants/ironclaw.svg';
 
 const TerminalView = lazy(() => import('@tangle-network/agent-ui/terminal').then((m) => ({ default: m.TerminalView })));
 const DEMO_TOKEN = import.meta.env.VITE_OPERATOR_API_TOKEN ?? 'oclw_dev_operator_token';
+const DEV_INSTANCE_ACCESS_TOKEN = (import.meta.env.VITE_UI_ACCESS_TOKEN ?? '').trim();
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === '1';
 
 const JOB_CREATE = 0;
@@ -362,6 +363,7 @@ function InstanceRuntimePanel() {
   const { address: connectedWallet, chainId, isConnected: isWalletConnected } = useAccount();
   const { connectAsync, connectors, isPending: isWalletConnectPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const { signMessageAsync } = useSignMessage();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
   const {
     data: walletBalance,
@@ -883,6 +885,41 @@ function InstanceRuntimePanel() {
     setNotice({ tone: 'info', text: 'Local token applied.' });
   }, []);
 
+  const signWithConnectedWallet = useCallback(
+    async (walletAddress: string, message: string): Promise<string> => {
+      let wagmiError: Error | null = null;
+      try {
+        const signature = await signMessageAsync({
+          account: walletAddress as `0x${string}`,
+          message,
+        });
+        if (typeof signature === 'string' && signature.trim().length > 0) {
+          return signature;
+        }
+        wagmiError = new Error('Wallet returned an empty signature.');
+      } catch (error) {
+        wagmiError = error as Error;
+      }
+
+      try {
+        return await signWalletMessage(walletAddress, message);
+      } catch (fallbackError) {
+        const hasProvider = Boolean(browserEthereum());
+        const providerHint = hasProvider ? '' : ' No injected wallet provider is available on this page.';
+        const secureContextHint =
+          typeof window !== 'undefined' && !window.isSecureContext
+            ? ' This page is not in a secure context; wallet signing may require https/localhost.'
+            : '';
+        throw new Error(
+          `Wallet signature failed: ${
+            wagmiError?.message ?? (fallbackError as Error).message
+          }.${providerHint}${secureContextHint}`,
+        );
+      }
+    },
+    [signMessageAsync],
+  );
+
   const ensureScopedSession = useCallback(
     async (instance: InstanceView): Promise<string> => {
       const existing = scopedSessions[instance.id];
@@ -916,15 +953,25 @@ function InstanceRuntimePanel() {
                     `Selected instance is owned by ${truncateAddress(instance.owner)}; connect the owner wallet.`,
                   );
                 }
-                const challenge = await requestWalletChallenge(token.trim(), {
-                  instanceId: instance.id,
-                  walletAddress: connectedWallet,
-                });
-                const signature = await signWalletMessage(connectedWallet, challenge.message);
-                return verifyWalletSession(token.trim(), {
-                  challengeId: challenge.challengeId,
-                  signature,
-                });
+                try {
+                  const challenge = await requestWalletChallenge(token.trim(), {
+                    instanceId: instance.id,
+                    walletAddress: connectedWallet,
+                  });
+                  const signature = await signWithConnectedWallet(connectedWallet, challenge.message);
+                  return verifyWalletSession(token.trim(), {
+                    challengeId: challenge.challengeId,
+                    signature,
+                  });
+                } catch (signatureError) {
+                  if (DEV_INSTANCE_ACCESS_TOKEN) {
+                    return createSessionFromAccessToken(token.trim(), {
+                      instanceId: instance.id,
+                      accessToken: DEV_INSTANCE_ACCESS_TOKEN,
+                    });
+                  }
+                  throw signatureError;
+                }
               })();
 
         setScopedSessions((current) => ({
@@ -942,7 +989,7 @@ function InstanceRuntimePanel() {
         setIsCreatingScopedSession(false);
       }
     },
-    [connectedWallet, instanceAccessTokenInput, scopedSessions, token],
+    [connectedWallet, instanceAccessTokenInput, scopedSessions, signWithConnectedWallet, token],
   );
 
   const onCreateScopedSession = useCallback(async () => {
@@ -1362,6 +1409,7 @@ function InstanceRuntimePanel() {
     selectedScopedSession && scopedSessionIsValid
       ? new Date(selectedScopedSession.expiresAt * 1000).toLocaleTimeString()
       : 'not issued';
+  const hasInjectedWalletProvider = Boolean(browserEthereum());
 
   useEffect(() => {
     if (!notice) return;
@@ -2130,6 +2178,16 @@ function InstanceRuntimePanel() {
                   !selectedInstanceOwnedByWallet ? (
                     <p className="text-xs claw-text-warning">
                       This instance is owned by {truncateAddress(selectedInstance.owner)}. Select an owned instance.
+                    </p>
+                  ) : null}
+                  {selectedAuthMode === 'wallet_signature' &&
+                  isWalletConnected &&
+                  !hasInjectedWalletProvider ? (
+                    <p className="text-xs claw-text-warning">
+                      Wallet provider is unavailable on this origin.
+                      {DEV_INSTANCE_ACCESS_TOKEN
+                        ? ' Using local access-token fallback for owner session bootstrap.'
+                        : ' Open this UI on https/localhost (or reconnect wallet) to enable signature-based owner sessions.'}
                     </p>
                   ) : null}
                   {selectedAuthMode === 'access_token' ? (

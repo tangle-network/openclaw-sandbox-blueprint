@@ -16,6 +16,7 @@ pub struct AuthConfig {
     pub session_ttl_secs: i64,
     pub access_token: Option<String>,
     pub operator_api_token: Option<String>,
+    pub allow_wallet_signature_access_token_fallback: bool,
 }
 
 impl AuthConfig {
@@ -36,12 +37,18 @@ impl AuthConfig {
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty());
+        let allow_wallet_signature_access_token_fallback =
+            std::env::var("OPENCLAW_ALLOW_WALLET_SIGNATURE_ACCESS_TOKEN_FALLBACK")
+                .ok()
+                .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
 
         Self {
             challenge_ttl_secs,
             session_ttl_secs,
             access_token,
             operator_api_token,
+            allow_wallet_signature_access_token_fallback,
         }
     }
 }
@@ -84,12 +91,16 @@ pub enum SessionClaims {
 #[derive(Clone, Debug)]
 pub struct AuthService {
     inner: ScopedAuthService,
+    allow_wallet_signature_access_token_fallback: bool,
 }
 
 impl AuthService {
     pub fn new(config: AuthConfig) -> Self {
+        let allow_wallet_signature_access_token_fallback =
+            config.allow_wallet_signature_access_token_fallback;
         Self {
             inner: ScopedAuthService::new(config.into()),
+            allow_wallet_signature_access_token_fallback,
         }
     }
 
@@ -139,9 +150,20 @@ impl AuthService {
         instance: &InstanceRecord,
         access_token: &str,
     ) -> Result<SessionResponse, String> {
+        let auth_mode = if self.allow_wallet_signature_access_token_fallback
+            && instance.ui_access.auth_mode == UiAuthMode::WalletSignature
+        {
+            ScopedAuthMode::AccessToken
+        } else {
+            match instance.ui_access.auth_mode {
+                UiAuthMode::WalletSignature => ScopedAuthMode::WalletSignature,
+                UiAuthMode::AccessToken => ScopedAuthMode::AccessToken,
+            }
+        };
+        let resource = resource_from_instance_with_mode(instance, auth_mode);
         let session = self
             .inner
-            .create_access_token_session(&resource_from_instance(instance), access_token)?;
+            .create_access_token_session(&resource, access_token)?;
 
         Ok(SessionResponse {
             token: session.token,
@@ -153,13 +175,23 @@ impl AuthService {
 }
 
 fn resource_from_instance(instance: &InstanceRecord) -> ScopedAuthResource {
-    ScopedAuthResource {
-        scope_id: instance.id.clone(),
-        owner: instance.owner.clone(),
-        auth_mode: match instance.ui_access.auth_mode {
+    resource_from_instance_with_mode(
+        instance,
+        match instance.ui_access.auth_mode {
             UiAuthMode::WalletSignature => ScopedAuthMode::WalletSignature,
             UiAuthMode::AccessToken => ScopedAuthMode::AccessToken,
         },
+    )
+}
+
+fn resource_from_instance_with_mode(
+    instance: &InstanceRecord,
+    auth_mode: ScopedAuthMode,
+) -> ScopedAuthResource {
+    ScopedAuthResource {
+        scope_id: instance.id.clone(),
+        owner: instance.owner.clone(),
+        auth_mode,
     }
 }
 
@@ -229,6 +261,7 @@ mod tests {
             session_ttl_secs: 3600,
             access_token: Some("x".to_string()),
             operator_api_token: Some("y".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         };
         assert_eq!(cfg.access_token.as_deref(), Some("x"));
         assert_eq!(cfg.operator_api_token.as_deref(), Some("y"));
@@ -245,6 +278,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: None,
             operator_api_token: Some("operator-token".to_string()),
+            allow_wallet_signature_access_token_fallback: false,
         });
 
         let challenge = auth
@@ -289,6 +323,7 @@ mod tests {
             session_ttl_secs: 300,
             access_token: None,
             operator_api_token: None,
+            allow_wallet_signature_access_token_fallback: false,
         });
 
         let err = auth
