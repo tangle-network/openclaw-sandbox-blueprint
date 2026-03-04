@@ -55,6 +55,7 @@ references and naming-collision notes.
 Read-only operations are **not** on-chain jobs. They are served via the
 operator HTTP API:
 
+- `GET /` (serves the built-in control-plane UI shell)
 - `GET /health`
 - `GET /templates`
 - `GET /instances` (requires bearer auth)
@@ -95,6 +96,7 @@ cargo build --release
 
 ```bash
 cargo test --all
+cargo test -p openclaw-instance-blueprint-lib -- --ignored
 ```
 
 ### Run (requires Tangle node + service registration)
@@ -237,6 +239,8 @@ SERVICE_ID=<id> HTTP_RPC_ENDPOINT=<url> KEYSTORE_URI=<uri> \
 - State-changing operations are jobs only (`create`, `start`, `stop`, `delete`).
 - Read-only operations stay in query surfaces (operator HTTP API).
 - Ship in small, composable PRs with explicit validation evidence.
+- CI runs Rust checks plus Docker-backed integration tests in
+  `.github/workflows/ci.yml`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, commit, and PR standards.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture notes.

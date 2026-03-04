@@ -6528,6 +6528,7 @@ dependencies = [
  "blueprint-sdk",
  "chrono",
  "once_cell",
+ "reqwest",
  "sandbox-runtime",
  "serde",
  "serde_json",
