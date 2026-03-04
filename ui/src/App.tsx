@@ -312,6 +312,10 @@ function InstanceRuntimePanel() {
   const [scopedSessions, setScopedSessions] = useState<Record<string, ScopedSession>>({});
   const [instanceAccessTokenInput, setInstanceAccessTokenInput] = useState<Record<string, string>>({});
   const [isCreatingScopedSession, setIsCreatingScopedSession] = useState(false);
+  const [ownerSessionFeedback, setOwnerSessionFeedback] = useState<{
+    tone: NoticeTone;
+    text: string;
+  } | null>(null);
   const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null);
   const [templates, setTemplates] = useState<TemplatePack[]>([]);
   const [instances, setInstances] = useState<InstanceView[]>([]);
@@ -768,6 +772,7 @@ function InstanceRuntimePanel() {
     setTab('workspace');
     setTerminalOutput('');
     setTeeOutput('');
+    setOwnerSessionFeedback(null);
   }, [selectedId]);
 
   const refresh = useCallback(async () => {
@@ -885,9 +890,6 @@ function InstanceRuntimePanel() {
       if (existing && existing.expiresAt > now + 30) {
         return existing.token;
       }
-      if (!token.trim()) {
-        throw new Error('Save an operator bearer token before creating an owner session.');
-      }
 
       setIsCreatingScopedSession(true);
       try {
@@ -900,7 +902,7 @@ function InstanceRuntimePanel() {
                 if (!accessToken) {
                   throw new Error('Enter the instance access token first.');
                 }
-                return createSessionFromAccessToken(token, {
+                return createSessionFromAccessToken(token.trim(), {
                   instanceId: instance.id,
                   accessToken,
                 });
@@ -914,12 +916,12 @@ function InstanceRuntimePanel() {
                     `Selected instance is owned by ${truncateAddress(instance.owner)}; connect the owner wallet.`,
                   );
                 }
-                const challenge = await requestWalletChallenge(token, {
+                const challenge = await requestWalletChallenge(token.trim(), {
                   instanceId: instance.id,
                   walletAddress: connectedWallet,
                 });
                 const signature = await signWalletMessage(connectedWallet, challenge.message);
-                return verifyWalletSession(token, {
+                return verifyWalletSession(token.trim(), {
                   challengeId: challenge.challengeId,
                   signature,
                 });
@@ -946,16 +948,21 @@ function InstanceRuntimePanel() {
   const onCreateScopedSession = useCallback(async () => {
     if (!selectedInstance) return;
     try {
+      setOwnerSessionFeedback(null);
       await ensureScopedSession(selectedInstance);
+      const text =
+        selectedAuthMode === 'wallet_signature'
+          ? 'Owner wallet session created.'
+          : 'Access-token session created.';
+      setOwnerSessionFeedback({ tone: 'success', text });
       setNotice({
         tone: 'success',
-        text:
-          selectedAuthMode === 'wallet_signature'
-            ? 'Owner wallet session created.'
-            : 'Access-token session created.',
+        text,
       });
     } catch (error) {
-      setNotice({ tone: 'error', text: `Session creation failed: ${(error as Error).message}` });
+      const text = `Session creation failed: ${(error as Error).message}`;
+      setOwnerSessionFeedback({ tone: 'error', text });
+      setNotice({ tone: 'error', text });
     }
   }, [ensureScopedSession, selectedAuthMode, selectedInstance]);
 
@@ -2115,9 +2122,6 @@ function InstanceRuntimePanel() {
                             : 'Create Access Session'}
                     </Button>
                   </div>
-                  {!hasToken ? (
-                    <p className="text-xs claw-text-warning">Save an operator token first to mint a scoped session.</p>
-                  ) : null}
                   {selectedAuthMode === 'wallet_signature' && !isWalletConnected ? (
                     <p className="text-xs claw-text-warning">Connect the owner wallet to create a scoped session.</p>
                   ) : null}
@@ -2150,6 +2154,19 @@ function InstanceRuntimePanel() {
                   <p className="text-xs text-claw-elements-textTertiary">
                     Session expires: {scopedSessionExpiryLabel}
                   </p>
+                  {ownerSessionFeedback ? (
+                    <p
+                      className={
+                        ownerSessionFeedback.tone === 'error'
+                          ? 'text-xs claw-text-danger'
+                          : ownerSessionFeedback.tone === 'success'
+                            ? 'text-xs claw-text-success'
+                            : 'text-xs text-claw-elements-textTertiary'
+                      }
+                    >
+                      {ownerSessionFeedback.text}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
