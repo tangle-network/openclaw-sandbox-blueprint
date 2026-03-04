@@ -491,13 +491,33 @@ function InstanceRuntimePanel() {
       await forceWalletToTargetChain();
       const contractAddress = import.meta.env.VITE_TANGLE_CONTRACT?.trim();
       if (contractAddress && isAddress(contractAddress)) {
-        const code = await jsonRpcCall<string>(TARGET_RPC_URL, 'eth_getCode', [contractAddress, 'latest']);
-        if (code === '0x') {
+        const targetCode = await jsonRpcCall<string>(TARGET_RPC_URL, 'eth_getCode', [contractAddress, 'latest']);
+        if (targetCode === '0x') {
           setNotice({
             tone: 'error',
             text: `RPC ${TARGET_RPC_URL} is reachable but has no contract code at ${contractAddress}. Check deploy-local RPC host/port.`,
           });
           return false;
+        }
+
+        const ethereum = browserEthereum();
+        if (ethereum) {
+          const walletCodeRaw = await ethereum
+            .request({
+              method: 'eth_getCode',
+              params: [contractAddress, 'latest'],
+            })
+            .catch(() => null);
+          const walletCode = typeof walletCodeRaw === 'string' ? walletCodeRaw : null;
+          if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
+            setNotice({
+              tone: 'error',
+              text:
+                `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
+                `In wallet network settings, set RPC URL to ${TARGET_RPC_URL}, then reconnect and retry.`,
+            });
+            return false;
+          }
         }
       }
       return true;
