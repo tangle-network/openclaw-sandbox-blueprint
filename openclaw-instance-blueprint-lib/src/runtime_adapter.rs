@@ -116,7 +116,10 @@ impl InstanceRuntimeAdapter for LocalStateRuntimeAdapter {
             config_json: input.config_json,
             owner: input.owner,
             ui_access: input.ui_access,
-            runtime: RuntimeBinding::default(),
+            runtime: RuntimeBinding {
+                backend: "local".to_string(),
+                ..RuntimeBinding::default()
+            },
             execution_target: input.execution_target,
             state: crate::state::InstanceState::Stopped,
             created_at: input.now,
@@ -960,8 +963,7 @@ pub fn init_instance_runtime_adapter(adapter: Arc<dyn InstanceRuntimeAdapter>) -
 
 /// Initialize runtime adapter from environment.
 ///
-/// - `OPENCLAW_RUNTIME_BACKEND=local` (default): file-state adapter
-/// - `OPENCLAW_RUNTIME_BACKEND=docker`: Docker-backed lifecycle adapter
+/// - `OPENCLAW_RUNTIME_BACKEND=docker` (default): Docker-backed lifecycle adapter
 pub fn init_runtime_adapter_from_env() -> Result<()> {
     if RUNTIME_ADAPTER.get().is_some() {
         return Ok(());
@@ -971,14 +973,13 @@ pub fn init_runtime_adapter_from_env() -> Result<()> {
         .ok()
         .map(|v| v.trim().to_ascii_lowercase())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "local".to_string());
+        .unwrap_or_else(|| "docker".to_string());
 
     let adapter: Arc<dyn InstanceRuntimeAdapter> = match backend.as_str() {
-        "local" => Arc::new(LocalStateRuntimeAdapter),
         "docker" => Arc::new(DockerRuntimeAdapter::from_env()?),
         other => {
             return Err(InstanceError::Store(format!(
-                "unsupported OPENCLAW_RUNTIME_BACKEND `{other}`; expected local or docker"
+                "unsupported OPENCLAW_RUNTIME_BACKEND `{other}`; expected docker"
             )));
         }
     };
@@ -988,9 +989,18 @@ pub fn init_runtime_adapter_from_env() -> Result<()> {
 
 /// Get the active runtime adapter.
 ///
-/// Defaults to [`LocalStateRuntimeAdapter`] when not explicitly initialized.
+/// Defaults to [`DockerRuntimeAdapter`] via environment initialization when not
+/// explicitly initialized.
 pub fn instance_runtime_adapter() -> Arc<dyn InstanceRuntimeAdapter> {
-    Arc::clone(RUNTIME_ADAPTER.get_or_init(|| Arc::new(LocalStateRuntimeAdapter)))
+    if RUNTIME_ADAPTER.get().is_none() {
+        init_runtime_adapter_from_env()
+            .expect("runtime adapter is not initialized and env-based docker init failed");
+    }
+    Arc::clone(
+        RUNTIME_ADAPTER
+            .get()
+            .expect("runtime adapter should be initialized"),
+    )
 }
 
 fn resolve_nanoclaw_image_from_env() -> Result<String> {

@@ -22,8 +22,14 @@ OPERATOR_API_PORT="${OPERATOR_API_PORT:-8787}"
 TEE_OPERATOR_API_PORT="${TEE_OPERATOR_API_PORT:-8788}"
 BUILD_UI="${BUILD_UI:-1}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
-RUN_SMOKE_CREATE="${RUN_SMOKE_CREATE:-1}"
-OPENCLAW_RUNTIME_BACKEND="${OPENCLAW_RUNTIME_BACKEND:-local}"
+RUN_SMOKE_CREATE="${RUN_SMOKE_CREATE:-0}"
+OPENCLAW_RUNTIME_BACKEND="${OPENCLAW_RUNTIME_BACKEND:-docker}"
+OPENCLAW_IMAGE_OPENCLAW="${OPENCLAW_IMAGE_OPENCLAW:-ghcr.io/openclaw/openclaw:latest}"
+OPENCLAW_IMAGE_IRONCLAW="${OPENCLAW_IMAGE_IRONCLAW:-nearaidev/ironclaw-nearai-worker:latest}"
+OPENCLAW_NANOCLAW_AUTO_BOOTSTRAP="${OPENCLAW_NANOCLAW_AUTO_BOOTSTRAP:-1}"
+OPENCLAW_NANOCLAW_BUILD_CONTEXT="${OPENCLAW_NANOCLAW_BUILD_CONTEXT:-}"
+OPENCLAW_NANOCLAW_CACHE_DIR="${OPENCLAW_NANOCLAW_CACHE_DIR:-/tmp/openclaw-nanoclaw-upstream}"
+OPENCLAW_NANOCLAW_REPO_URL="${OPENCLAW_NANOCLAW_REPO_URL:-https://github.com/qwibitai/nanoclaw.git}"
 
 # Prefer Tailscale host when available so browser wallets can reach RPC remotely.
 if [[ -z "${PUBLIC_HOST:-}" ]]; then
@@ -94,19 +100,44 @@ done
 
 if [[ "$OPENCLAW_RUNTIME_BACKEND" == "docker" ]]; then
     require_cmd docker
-    if [[ -z "${OPENCLAW_IMAGE_OPENCLAW:-}" ]]; then
-        echo "ERROR: OPENCLAW_IMAGE_OPENCLAW is required when OPENCLAW_RUNTIME_BACKEND=docker"
-        exit 1
-    fi
-    if [[ -z "${OPENCLAW_IMAGE_IRONCLAW:-}" ]]; then
-        echo "ERROR: OPENCLAW_IMAGE_IRONCLAW is required when OPENCLAW_RUNTIME_BACKEND=docker"
-        exit 1
-    fi
+    require_cmd git
+
     if [[ -z "${OPENCLAW_IMAGE_NANOCLAW:-}" && -z "${OPENCLAW_NANOCLAW_BUILD_CONTEXT:-}" ]]; then
-        echo "ERROR: set OPENCLAW_IMAGE_NANOCLAW or OPENCLAW_NANOCLAW_BUILD_CONTEXT when OPENCLAW_RUNTIME_BACKEND=docker"
+        if [[ "$OPENCLAW_NANOCLAW_AUTO_BOOTSTRAP" == "1" || "$OPENCLAW_NANOCLAW_AUTO_BOOTSTRAP" == "true" ]]; then
+            echo "  Bootstrapping NanoClaw build context into $OPENCLAW_NANOCLAW_CACHE_DIR"
+            if [[ -d "$OPENCLAW_NANOCLAW_CACHE_DIR/.git" ]]; then
+                git -C "$OPENCLAW_NANOCLAW_CACHE_DIR" fetch --depth 1 origin main >/dev/null 2>&1 || true
+                git -C "$OPENCLAW_NANOCLAW_CACHE_DIR" reset --hard FETCH_HEAD >/dev/null 2>&1 || true
+            else
+                rm -rf "$OPENCLAW_NANOCLAW_CACHE_DIR"
+                git clone --depth 1 "$OPENCLAW_NANOCLAW_REPO_URL" "$OPENCLAW_NANOCLAW_CACHE_DIR" >/dev/null
+            fi
+            OPENCLAW_NANOCLAW_BUILD_CONTEXT="$OPENCLAW_NANOCLAW_CACHE_DIR"
+        else
+            echo "ERROR: set OPENCLAW_IMAGE_NANOCLAW or OPENCLAW_NANOCLAW_BUILD_CONTEXT when OPENCLAW_RUNTIME_BACKEND=docker"
+            exit 1
+        fi
+    fi
+
+    if [[ ! -d "${OPENCLAW_NANOCLAW_BUILD_CONTEXT:-/__missing__}" && -z "${OPENCLAW_IMAGE_NANOCLAW:-}" ]]; then
+        echo "ERROR: OPENCLAW_NANOCLAW_BUILD_CONTEXT does not exist: $OPENCLAW_NANOCLAW_BUILD_CONTEXT"
         exit 1
+    fi
+
+    # The upstream IronClaw worker image requires non-interactive auth env.
+    if [[ -z "${NEARAI_API_KEY:-}" && -z "${NEARAI_SESSION_TOKEN:-}" ]]; then
+        export NEARAI_API_KEY="${NEARAI_API_KEY:-integration-placeholder-key}"
+        echo "  WARNING: NEARAI_API_KEY/NEARAI_SESSION_TOKEN not set; using placeholder key for local startup."
     fi
 fi
+
+export OPENCLAW_IMAGE_OPENCLAW
+export OPENCLAW_IMAGE_IRONCLAW
+export OPENCLAW_IMAGE_NANOCLAW="${OPENCLAW_IMAGE_NANOCLAW:-}"
+export OPENCLAW_NANOCLAW_BUILD_CONTEXT="${OPENCLAW_NANOCLAW_BUILD_CONTEXT:-}"
+export OPENCLAW_NANOCLAW_BUILD_SCRIPT="${OPENCLAW_NANOCLAW_BUILD_SCRIPT:-container/build.sh}"
+export OPENCLAW_NANOCLAW_BUILD_IMAGE_NAME="${OPENCLAW_NANOCLAW_BUILD_IMAGE_NAME:-nanoclaw-agent}"
+export OPENCLAW_NANOCLAW_BUILD_TAG="${OPENCLAW_NANOCLAW_BUILD_TAG:-latest}"
 
 parse_deploy() {
     echo "$FORGE_OUTPUT" | grep "DEPLOY_${1}=" | sed "s/.*DEPLOY_${1}=//" | tr -d ' '
@@ -159,6 +190,15 @@ echo "Chain ID:    $ANVIL_CHAIN_ID"
 echo "Public host: $PUBLIC_HOST"
 echo "Runtime:     $OPENCLAW_RUNTIME_BACKEND"
 echo "Callers:     $SERVICE_CALLERS_ARRAY"
+if [[ "$OPENCLAW_RUNTIME_BACKEND" == "docker" ]]; then
+    echo "OpenClaw:    $OPENCLAW_IMAGE_OPENCLAW"
+    echo "IronClaw:    $OPENCLAW_IMAGE_IRONCLAW"
+    if [[ -n "${OPENCLAW_IMAGE_NANOCLAW:-}" ]]; then
+        echo "NanoClaw:    $OPENCLAW_IMAGE_NANOCLAW"
+    else
+        echo "NanoClaw:    build from $OPENCLAW_NANOCLAW_BUILD_CONTEXT"
+    fi
+fi
 echo ""
 
 wait_for_http_ready() {
@@ -532,6 +572,10 @@ TEE_OPERATOR_API_URL=http://$PUBLIC_HOST:$TEE_OPERATOR_API_PORT
 OPENCLAW_OPERATOR_API_TOKEN=$OPENCLAW_OPERATOR_API_TOKEN
 OPENCLAW_UI_ACCESS_TOKEN=$OPENCLAW_UI_ACCESS_TOKEN
 OPENCLAW_RUNTIME_BACKEND=$OPENCLAW_RUNTIME_BACKEND
+OPENCLAW_IMAGE_OPENCLAW=$OPENCLAW_IMAGE_OPENCLAW
+OPENCLAW_IMAGE_IRONCLAW=$OPENCLAW_IMAGE_IRONCLAW
+OPENCLAW_IMAGE_NANOCLAW=$OPENCLAW_IMAGE_NANOCLAW
+OPENCLAW_NANOCLAW_BUILD_CONTEXT=$OPENCLAW_NANOCLAW_BUILD_CONTEXT
 SERVICE_CALLERS_ARRAY=$SERVICE_CALLERS_ARRAY
 
 DEPLOYER_KEY=$DEPLOYER_KEY

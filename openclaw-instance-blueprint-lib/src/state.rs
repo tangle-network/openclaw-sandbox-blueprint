@@ -180,7 +180,7 @@ pub struct RuntimeBinding {
 impl Default for RuntimeBinding {
     fn default() -> Self {
         Self {
-            backend: "local".to_string(),
+            backend: "docker".to_string(),
             image: None,
             container_name: None,
             container_id: None,
@@ -443,7 +443,7 @@ mod tests {
         assert_eq!(record.ui_access.auth_mode, UiAuthMode::WalletSignature);
         assert!(record.ui_access.owner_only);
         assert!(record.ui_access.public_url.is_none());
-        assert_eq!(record.runtime.backend, "local");
+        assert_eq!(record.runtime.backend, "docker");
         assert_eq!(record.execution_target, ExecutionTarget::Standard);
     }
 }

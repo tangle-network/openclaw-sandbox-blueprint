@@ -173,7 +173,7 @@ Docker execution backend for lifecycle operations. The runtime adapter boundary
 is defined and wired in the lib crate:
 
 - `InstanceRuntimeAdapter` trait = product/runtime integration contract
-- `LocalStateRuntimeAdapter` = default local projection adapter
+- `LocalStateRuntimeAdapter` = in-memory/file projection adapter used for tests
 - `DockerRuntimeAdapter` = lifecycle execution through Docker CLI (`create/start/stop/rm`)
 
 Job handlers call the adapter, not storage internals directly. A future
