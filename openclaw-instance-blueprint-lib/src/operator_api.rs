@@ -1,5 +1,6 @@
 //! Operator HTTP API for read-only queries and session auth.
 
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -102,6 +103,23 @@ struct CreateTokenSessionRequest {
     access_token: String,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StartSetupRequest {
+    #[serde(default)]
+    env: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstanceAccessResponse {
+    instance_id: String,
+    auth_scheme: String,
+    bearer_token: String,
+    ui_local_url: Option<String>,
+    public_url: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionResponse {
@@ -122,6 +140,8 @@ pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch
         .route("/templates", get(templates))
         .route("/instances", get(instances))
         .route("/instances/{id}", get(instance_by_id))
+        .route("/instances/{id}/access", get(instance_access))
+        .route("/instances/{id}/setup/start", post(start_instance_setup))
         .route("/auth/challenge", post(auth_challenge))
         .route("/auth/session/wallet", post(auth_session_wallet))
         .route("/auth/session/token", post(auth_session_token))
@@ -187,6 +207,105 @@ async fn instance_by_id(
             Ok(Json(instance))
         }
     }
+}
+
+async fn instance_access(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<InstanceAccessResponse>, ApiError> {
+    let claims = authorize(&state.auth, &headers)?;
+    let SessionClaims::Scoped { instance_id, owner } = claims else {
+        return Err(ApiError::Forbidden(
+            "operator tokens are not allowed for instance access retrieval".to_string(),
+        ));
+    };
+    if instance_id != id {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this instance".to_string(),
+        ));
+    }
+
+    let Some(record) = state
+        .adapter
+        .get_instance(&id)
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+    else {
+        return Err(ApiError::NotFound(format!("instance not found: {id}")));
+    };
+    if !record.owner.eq_ignore_ascii_case(&owner) {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this instance".to_string(),
+        ));
+    }
+
+    let Some(bearer_token) = record.runtime.ui_bearer_token.clone() else {
+        return Err(ApiError::BadRequest(
+            "instance UI bearer token is not configured".to_string(),
+        ));
+    };
+
+    Ok(Json(InstanceAccessResponse {
+        instance_id: record.id,
+        auth_scheme: record
+            .runtime
+            .ui_auth_scheme
+            .clone()
+            .unwrap_or_else(|| "bearer".to_string()),
+        bearer_token,
+        ui_local_url: record.runtime.ui_local_url.clone(),
+        public_url: record.ui_access.public_url.clone(),
+    }))
+}
+
+async fn start_instance_setup(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<StartSetupRequest>,
+) -> Result<Json<crate::query::InstanceView>, ApiError> {
+    let claims = authorize(&state.auth, &headers)?;
+    let SessionClaims::Scoped { instance_id, owner } = claims else {
+        return Err(ApiError::Forbidden(
+            "operator tokens are not allowed for setup execution".to_string(),
+        ));
+    };
+    if instance_id != id {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this instance".to_string(),
+        ));
+    }
+
+    let Some(mut record) = state
+        .adapter
+        .get_instance(&id)
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+    else {
+        return Err(ApiError::NotFound(format!("instance not found: {id}")));
+    };
+    if !record.owner.eq_ignore_ascii_case(&owner) {
+        return Err(ApiError::Forbidden(
+            "session is not authorized for this instance".to_string(),
+        ));
+    }
+
+    state
+        .adapter
+        .trigger_setup(&mut record, &request.env)
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    record.updated_at = chrono::Utc::now().timestamp();
+    let _ = state
+        .adapter
+        .save_instance(record)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let Some(view) = get_instance_view(Arc::clone(&state.adapter), &id)
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+    else {
+        return Err(ApiError::NotFound(format!("instance not found: {id}")));
+    };
+    Ok(Json(view))
 }
 
 async fn auth_challenge(

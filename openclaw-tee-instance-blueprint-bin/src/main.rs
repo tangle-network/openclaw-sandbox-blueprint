@@ -12,13 +12,16 @@ use blueprint_sdk::{error, info, warn};
 use openclaw_tee_instance_blueprint_lib::operator_api::{
     operator_api_addr_from_env, run_operator_api,
 };
-use openclaw_tee_instance_blueprint_lib::{init_tee_mode, tee_router};
+use openclaw_tee_instance_blueprint_lib::{
+    init_runtime_adapter_from_env, init_tee_mode, tee_router,
+};
 
 #[tokio::main]
 #[allow(clippy::result_large_err)]
 async fn main() -> Result<(), blueprint_sdk::Error> {
     setup_log();
     init_tee_mode();
+    init_runtime_adapter_from_env().map_err(|e| blueprint_sdk::Error::Other(e.to_string()))?;
 
     let operator_shutdown = tokio::sync::watch::channel(());
     let operator_shutdown_tx = operator_shutdown.0;

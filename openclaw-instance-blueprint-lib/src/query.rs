@@ -20,6 +20,26 @@ pub struct UiAccessView {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeView {
+    pub backend: String,
+    pub image: Option<String>,
+    pub container_name: Option<String>,
+    pub container_id: Option<String>,
+    pub container_status: Option<String>,
+    pub ui_host_port: Option<u16>,
+    pub ui_local_url: Option<String>,
+    pub ui_auth_scheme: Option<String>,
+    pub ui_auth_env_key: Option<String>,
+    pub has_ui_bearer_token: bool,
+    pub setup_url: Option<String>,
+    pub setup_status: Option<String>,
+    pub setup_command: Option<String>,
+    pub setup_instructions: Option<String>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InstanceView {
     pub id: String,
     pub name: String,
@@ -31,6 +51,7 @@ pub struct InstanceView {
     pub created_at: i64,
     pub updated_at: i64,
     pub ui_access: UiAccessView,
+    pub runtime: RuntimeView,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -57,6 +78,23 @@ pub fn instance_view(record: &InstanceRecord) -> InstanceView {
             tunnel_status: record.ui_access.tunnel_status.to_string(),
             auth_mode: record.ui_access.auth_mode.to_string(),
             owner_only: record.ui_access.owner_only,
+        },
+        runtime: RuntimeView {
+            backend: record.runtime.backend.clone(),
+            image: record.runtime.image.clone(),
+            container_name: record.runtime.container_name.clone(),
+            container_id: record.runtime.container_id.clone(),
+            container_status: record.runtime.container_status.clone(),
+            ui_host_port: record.runtime.ui_host_port,
+            ui_local_url: record.runtime.ui_local_url.clone(),
+            ui_auth_scheme: record.runtime.ui_auth_scheme.clone(),
+            ui_auth_env_key: record.runtime.ui_auth_env_key.clone(),
+            has_ui_bearer_token: record.runtime.ui_bearer_token.is_some(),
+            setup_url: record.runtime.setup_url.clone(),
+            setup_status: record.runtime.setup_status.clone(),
+            setup_command: record.runtime.setup_command.clone(),
+            setup_instructions: record.runtime.setup_instructions.clone(),
+            last_error: record.runtime.last_error.clone(),
         },
     }
 }

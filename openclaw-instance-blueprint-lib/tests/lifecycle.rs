@@ -6,7 +6,7 @@
 use std::sync::Once;
 
 use openclaw_instance_blueprint_lib::state::{
-    self, ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, UiAccess,
+    self, ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, RuntimeBinding, UiAccess,
 };
 
 static INIT: Once = Once::new();
@@ -33,6 +33,7 @@ fn make_record(id: &str, st: InstanceState) -> InstanceRecord {
         config_json: String::new(),
         owner: OWNER.to_string(),
         ui_access: UiAccess::default(),
+        runtime: RuntimeBinding::default(),
         execution_target: ExecutionTarget::Standard,
         state: st,
         created_at: 1000,

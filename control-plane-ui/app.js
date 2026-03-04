@@ -87,8 +87,12 @@ async function renderInstances() {
 
     const variant = instance.clawVariant ?? "openclaw";
     const publicUrl = instance.uiAccess?.publicUrl ?? "pending";
+    const runtime = instance.runtime ?? {};
+    const setupStatus = runtime.setupStatus ?? "n/a";
+    const localUi = runtime.uiLocalUrl ?? "n/a";
+    const secured = runtime.hasUiBearerToken ? "secured" : "unsecured";
     const details = document.createElement("span");
-    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl}`;
+    details.textContent = ` [${instance.status}] - ${variant} - ${instance.templatePackId} - UI: ${publicUrl} - local: ${localUi} - setup: ${setupStatus} - ${secured}`;
     li.append(details);
 
     const actions = document.createElement("span");
@@ -135,6 +139,81 @@ async function renderInstances() {
       });
       actions.append(button);
     }
+
+    const setupButton = document.createElement("button");
+    setupButton.type = "button";
+    setupButton.textContent = "start-setup";
+    setupButton.style.marginLeft = "4px";
+    if (instance.status !== "running") {
+      setupButton.disabled = true;
+      setupButton.title = "Start the instance before running setup.";
+    }
+    setupButton.addEventListener("click", async () => {
+      const raw = window.prompt(
+        "Optional setup env vars (KEY=VALUE, one per line). Leave empty for none.",
+        ""
+      );
+      const env = {};
+      if (raw && raw.trim().length > 0) {
+        for (const line of raw.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            continue;
+          }
+          const idx = trimmed.indexOf("=");
+          if (idx <= 0) {
+            setStatus(`Invalid setup env line: ${trimmed}`, true);
+            return;
+          }
+          const key = trimmed.slice(0, idx).trim();
+          const value = trimmed.slice(idx + 1);
+          env[key] = value;
+        }
+      }
+
+      try {
+        setupButton.disabled = true;
+        await getJson(`/instances/${instance.id}/setup/start`, {
+          method: "POST",
+          body: JSON.stringify({ env })
+        });
+        await renderInstances();
+        setStatus("Setup bootstrap started.");
+      } catch (error) {
+        setStatus(`Setup start failed: ${error.message}`, true);
+      } finally {
+        setupButton.disabled = false;
+      }
+    });
+    actions.append(setupButton);
+
+    const accessButton = document.createElement("button");
+    accessButton.type = "button";
+    accessButton.textContent = "show-access";
+    accessButton.style.marginLeft = "4px";
+    accessButton.addEventListener("click", async () => {
+      try {
+        accessButton.disabled = true;
+        const access = await getJson(`/instances/${instance.id}/access`);
+        const lines = [
+          `Instance: ${access.instanceId}`,
+          `Auth: ${access.authScheme}`,
+          `Bearer: ${access.bearerToken}`,
+          `Local UI: ${access.uiLocalUrl ?? "n/a"}`,
+          `Public URL: ${access.publicUrl ?? "n/a"}`,
+          "",
+          "Use header:",
+          `Authorization: Bearer ${access.bearerToken}`
+        ];
+        window.alert(lines.join("\n"));
+        setStatus("Fetched instance access credentials.");
+      } catch (error) {
+        setStatus(`Access lookup failed: ${error.message}`, true);
+      } finally {
+        accessButton.disabled = false;
+      }
+    });
+    actions.append(accessButton);
 
     li.append(actions);
     list.append(li);

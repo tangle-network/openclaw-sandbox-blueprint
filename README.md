@@ -59,6 +59,8 @@ operator HTTP API:
 - `GET /templates`
 - `GET /instances` (requires bearer auth)
 - `GET /instances/{id}` (requires bearer auth)
+- `GET /instances/{id}/access` (requires scoped bearer auth; returns per-instance UI bearer token)
+- `POST /instances/{id}/setup/start` (requires scoped bearer auth)
 
 Session endpoints:
 
@@ -143,21 +145,82 @@ Execution target behavior:
 ## Dependency on sandbox-runtime contracts
 
 This blueprint is a **product layer** over sandbox runtime contracts. It does
-not implement VM/Firecracker orchestration directly. The runtime adapter
-boundary is defined and wired in the lib crate:
+not implement VM/Firecracker orchestration directly. It does implement a real
+Docker execution backend for lifecycle operations. The runtime adapter boundary
+is defined and wired in the lib crate:
 
 - `InstanceRuntimeAdapter` trait = product/runtime integration contract
-- `LocalStateRuntimeAdapter` = default local projection adapter (current)
+- `LocalStateRuntimeAdapter` = default local projection adapter
+- `DockerRuntimeAdapter` = lifecycle execution through Docker CLI (`create/start/stop/rm`)
 
 Job handlers call the adapter, not storage internals directly. A future
-sandbox-runtime-backed adapter can be injected without rewriting job handlers.
+sandbox-runtime-backed adapter (for microVM/Firecracker) can be injected
+without rewriting job handlers.
+
+## Real execution backend (Docker)
+
+Enable Docker-backed lifecycle execution:
+
+```bash
+export OPENCLAW_RUNTIME_BACKEND=docker
+export OPENCLAW_IMAGE_OPENCLAW=ghcr.io/<org>/<openclaw-image>:<tag>
+export OPENCLAW_IMAGE_IRONCLAW=ghcr.io/<org>/<ironclaw-image>:<tag>
+export OPENCLAW_DOCKER_PULL=true # optional, default true
+```
+
+NanoClaw image options:
+
+- prebuilt image:
+  - `OPENCLAW_IMAGE_NANOCLAW=<image:tag>`
+- or build on demand during adapter init:
+  - `OPENCLAW_NANOCLAW_BUILD_CONTEXT=/path/to/nanoclaw`
+  - optional `OPENCLAW_NANOCLAW_BUILD_SCRIPT=container/build.sh`
+  - optional `OPENCLAW_NANOCLAW_BUILD_IMAGE_NAME=nanoclaw-agent`
+  - optional `OPENCLAW_NANOCLAW_BUILD_TAG=latest`
+
+Behavior:
+
+- `create` creates a container from the variant-mapped image.
+- UI port mapping defaults:
+  - OpenClaw: `18789`
+  - IronClaw: `3000`
+  - NanoClaw: inferred from image metadata or explicit env override
+- per-variant UI port override: `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_UI_PORT`
+- `start` runs `docker start`.
+- `stop` runs `docker stop`.
+- `delete` runs `docker rm -f`.
+- query surfaces include runtime metadata (`backend`, image, container status, local UI URL, setup status, last error).
+- canonical UI auth env is unified across variants: `SANDBOX_UI_BEARER_TOKEN` (`SANDBOX_UI_AUTH_MODE=bearer`).
+- per-instance token retrieval for owner-scoped sessions: `GET /instances/{id}/access`.
+- canonical env naming + token generation come from
+  `sandbox-runtime::ingress_access_control` (re-exported by `openclaw-instance-blueprint-lib`).
+- compatibility aliases are still injected for existing images (`CLAW_UI_BEARER_TOKEN`, `OPENCLAW_GATEWAY_TOKEN`, `NANOCLAW_UI_BEARER_TOKEN`, `GATEWAY_AUTH_TOKEN`).
+- setup bootstrap can be triggered with `POST /instances/{id}/setup/start` (scoped session required).
+- default setup commands:
+  - OpenClaw: `openclaw onboard`
+  - NanoClaw: `bash setup.sh`
+  - IronClaw: `ironclaw onboard`
+- command override per variant: `OPENCLAW_VARIANT_<...>_SETUP_COMMAND`
+- setup env allowlist per variant: `OPENCLAW_VARIANT_<...>_SETUP_ENV_KEYS` (comma-separated)
+
+This repository does not publish or bundle the variant images. You must provide
+valid image references for your environment.
+
+## Security posture (current)
+
+- Containers are bound to loopback only (`127.0.0.1` port mapping), not exposed directly on public interfaces.
+- Each Docker instance receives a unique bearer token under canonical env key `SANDBOX_UI_BEARER_TOKEN`.
+- Operator API setup execution is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
+- UI token retrieval is restricted to **instance-scoped sessions** (owner flow), not operator-wide tokens.
+- Setup env keys are validated and only injected for the setup execution call; they are not persisted in instance state.
+- UI ingress should still be fronted by authenticated tunnel/reverse proxy before internet exposure.
 
 ## State location
 
 Instance state persists at:
 
 - `$OPENCLAW_INSTANCE_STATE_DIR/instances.json` (preferred)
-- fallback: `$OPENCLAW_STATE_DIR/instances.json` (legacy compatibility)
+- fallback: `$OPENCLAW_STATE_DIR/instances.json` (compatibility path)
 - default: `/tmp/openclaw-instance-blueprint/instances.json`
 
 ## TEE variant

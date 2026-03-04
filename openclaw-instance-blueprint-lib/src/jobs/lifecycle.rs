@@ -225,7 +225,7 @@ pub async fn create_instance(
     );
 
     let adapter = instance_runtime_adapter();
-    adapter
+    let record = adapter
         .create_instance(RuntimeCreateInput {
             id: id.clone(),
             name: name.clone(),
@@ -239,27 +239,8 @@ pub async fn create_instance(
         })
         .map_err(|e| e.to_string())?;
 
-    let metadata = serde_json::json!({
-        "instance_id": id,
-        "name": name,
-        "template_pack_id": template_pack_id,
-        "claw_variant": profile.claw_variant.to_string(),
-        "execution_target": profile.execution_target.to_string(),
-        "ui_access": {
-            "public_url": profile.ui_access.public_url.clone(),
-            "tunnel_status": profile.ui_access.tunnel_status.to_string(),
-            "auth_mode": profile.ui_access.auth_mode.to_string(),
-            "owner_only": profile.ui_access.owner_only,
-        },
-        "state": "stopped",
-        "created_at": now,
-    });
-
-    Ok(TangleResult(InstanceResponse {
-        instance_id: id,
-        status: JOB_RESULT_SUCCESS.to_string(),
-        metadata_json: metadata.to_string(),
-    }))
+    let response = instance_response(&record);
+    Ok(TangleResult(response))
 }
 
 /// Start an OpenClaw instance.
@@ -287,8 +268,17 @@ pub async fn start_instance(
         .to_string());
     }
 
+    let now = chrono::Utc::now().timestamp();
+    if let Err(err) = adapter.on_start_instance(&mut record) {
+        let err_msg = err.to_string();
+        record.updated_at = now;
+        record.runtime.last_error = Some(err_msg.clone());
+        let _ = adapter.save_instance(record);
+        return Err(err_msg);
+    }
+
     record.state = InstanceState::Running;
-    record.updated_at = chrono::Utc::now().timestamp();
+    record.updated_at = now;
     let response = instance_response(&record);
     adapter.save_instance(record).map_err(|e| e.to_string())?;
 
@@ -320,8 +310,17 @@ pub async fn stop_instance(
         .to_string());
     }
 
+    let now = chrono::Utc::now().timestamp();
+    if let Err(err) = adapter.on_stop_instance(&mut record) {
+        let err_msg = err.to_string();
+        record.updated_at = now;
+        record.runtime.last_error = Some(err_msg.clone());
+        let _ = adapter.save_instance(record);
+        return Err(err_msg);
+    }
+
     record.state = InstanceState::Stopped;
-    record.updated_at = chrono::Utc::now().timestamp();
+    record.updated_at = now;
     let response = instance_response(&record);
     adapter.save_instance(record).map_err(|e| e.to_string())?;
 
@@ -354,8 +353,17 @@ pub async fn delete_instance(
         .to_string());
     }
 
+    let now = chrono::Utc::now().timestamp();
+    if let Err(err) = adapter.on_delete_instance(&mut record) {
+        let err_msg = err.to_string();
+        record.updated_at = now;
+        record.runtime.last_error = Some(err_msg.clone());
+        let _ = adapter.save_instance(record);
+        return Err(err_msg);
+    }
+
     record.state = InstanceState::Deleted;
-    record.updated_at = chrono::Utc::now().timestamp();
+    record.updated_at = now;
     let response = instance_response(&record);
     adapter.save_instance(record).map_err(|e| e.to_string())?;
 
@@ -405,8 +413,15 @@ fn instance_response(record: &InstanceRecord) -> InstanceResponse {
             "auth_mode": record.ui_access.auth_mode.to_string(),
             "owner_only": record.ui_access.owner_only,
         },
+        "runtime": {
+            "backend": record.runtime.backend.clone(),
+            "container_status": record.runtime.container_status.clone(),
+            "setup_status": record.runtime.setup_status.clone(),
+            "last_error": record.runtime.last_error.clone(),
+        },
         "state": record.state.to_string(),
         "owner": record.owner,
+        "created_at": record.created_at,
         "updated_at": record.updated_at,
     });
 

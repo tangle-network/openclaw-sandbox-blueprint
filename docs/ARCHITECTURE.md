@@ -13,8 +13,18 @@ This repository is the product-layer blueprint. It is **not** the
 infrastructure substrate. Runtime isolation, VM orchestration, and low-level
 network/security enforcement are delegated to the sandbox runtime (see
 `ai-agent-sandbox-blueprint` for the runtime reference).
+Within product-layer scope, this repo can execute lifecycle through a Docker
+backend; Firecracker/microVM substrate remains delegated.
 
 ## Crate structure
+
+### `sandbox-runtime::ingress_access_control`
+
+Shared ingress access primitives reused from `ai-agent-sandbox-blueprint`:
+
+- Canonical env keys for UI auth (`SANDBOX_UI_AUTH_MODE`, `SANDBOX_UI_BEARER_TOKEN`)
+- Per-instance bearer token generation
+- Canonical+alias env binding helpers
 
 ### `openclaw-instance-blueprint-lib`
 
@@ -27,11 +37,11 @@ Library crate containing all business logic:
   and `TangleArg<T>` extractors and returns `TangleResult<T>`. Handlers call
   the runtime adapter boundary instead of touching storage directly.
 - **`runtime_adapter.rs`** — Runtime adapter contract (`InstanceRuntimeAdapter`)
-  and default local implementation (`LocalStateRuntimeAdapter`).
+  and implementations (`LocalStateRuntimeAdapter`, `DockerRuntimeAdapter`).
 - **`query.rs`** — reusable read-only query helpers (instance/template views).
 - **`auth.rs`** — challenge/session auth service for operator API access control.
 - **`operator_api.rs`** — axum router and handlers for `/health`,
-  `/templates`, `/instances`, and auth/session endpoints.
+  `/templates`, `/instances`, auth/session endpoints, and setup trigger endpoint.
 - **`state.rs`** — File-backed persistent store for `InstanceRecord` objects.
   Uses `once_cell::OnceCell` + `Mutex<BTreeMap>` with JSON persistence.
 - **`error.rs`** — Domain error type (`InstanceError`) with conversions to
@@ -80,6 +90,8 @@ HTTP API (axum):
 
 - `GET /instances` — list instances (scoped by bearer claims)
 - `GET /instances/{id}` — instance detail
+- `GET /instances/{id}/access` — fetch per-instance UI bearer token (scoped session only)
+- `POST /instances/{id}/setup/start` — trigger variant setup bootstrap (scoped session only)
 - `GET /templates` — list template packs
 - `GET /health` — liveness check
 
@@ -99,7 +111,7 @@ Operator API startup defaults:
 Instance records are stored in a JSON file at:
 
 - `$OPENCLAW_INSTANCE_STATE_DIR/instances.json` (preferred)
-- fallback: `$OPENCLAW_STATE_DIR/instances.json` (legacy compatibility)
+- fallback: `$OPENCLAW_STATE_DIR/instances.json` (compatibility path)
 - default: `/tmp/openclaw-instance-blueprint/instances.json`
 
 The store uses `once_cell::OnceCell` for lazy initialization and
@@ -121,6 +133,12 @@ The adapter boundary is implemented:
 
 - `InstanceRuntimeAdapter` is the lifecycle contract consumed by product jobs.
 - `LocalStateRuntimeAdapter` is the default adapter (file-backed local state).
+- `DockerRuntimeAdapter` executes real container lifecycle via Docker CLI when
+  `OPENCLAW_RUNTIME_BACKEND=docker` and image env vars are configured.
+- Canonical UI auth env key across variants is `SANDBOX_UI_BEARER_TOKEN`
+  (`SANDBOX_UI_AUTH_MODE=bearer`), with compatibility aliases still injected for existing images.
+- Runtime maps UI ports to loopback host addresses only (`127.0.0.1`), so
+  public exposure must happen through an authenticated tunnel/reverse proxy layer.
 - `init_instance_runtime_adapter(...)` allows replacing the default with a
   sandbox-runtime-backed adapter.
 

@@ -19,10 +19,12 @@ orchestration on the Tangle network.
   and Custom mode.
 - **File-backed persistent state** for instance records with ownership tracking.
 - **Caller ownership validation** on all lifecycle operations.
+- **Runtime backend abstraction** with real Docker lifecycle execution support:
+  create/start/stop/delete invoke Docker when `OPENCLAW_RUNTIME_BACKEND=docker`.
 
 ## Out of scope
 
-- Real Firecracker/VM orchestration (delegated to sandbox runtime).
+- Real Firecracker/microVM orchestration (delegated to sandbox runtime).
 - Multi-tenant hardened operator API deployment (rate limiting, WAF, external IdP).
 - Durable queueing beyond file-backed JSON store.
 - Billing and production policy enforcement.
