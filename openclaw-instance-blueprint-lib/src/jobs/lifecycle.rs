@@ -117,6 +117,13 @@ fn parse_execution_target_from_env() -> Result<ExecutionTarget, String> {
     }
 }
 
+fn auto_start_on_create() -> bool {
+    std::env::var("OPENCLAW_AUTO_START_ON_CREATE")
+        .ok()
+        .map(|v| !(v.trim() == "0" || v.eq_ignore_ascii_case("false")))
+        .unwrap_or(true)
+}
+
 fn resolve_create_profile(
     instance_id: &str,
     config_json: &str,
@@ -225,7 +232,7 @@ pub async fn create_instance(
     );
 
     let adapter = instance_runtime_adapter();
-    let record = adapter
+    let mut record = adapter
         .create_instance(RuntimeCreateInput {
             id: id.clone(),
             name: name.clone(),
@@ -238,6 +245,24 @@ pub async fn create_instance(
             now,
         })
         .map_err(|e| e.to_string())?;
+
+    if auto_start_on_create() && record.state == InstanceState::Stopped {
+        let now = chrono::Utc::now().timestamp();
+        match adapter.on_start_instance(&mut record) {
+            Ok(()) => {
+                record.state = InstanceState::Running;
+                record.updated_at = now;
+                record.runtime.last_error = None;
+            }
+            Err(err) => {
+                // Keep create successful but surface startup failure in record state.
+                record.state = InstanceState::Stopped;
+                record.updated_at = now;
+                record.runtime.last_error = Some(format!("auto-start on create failed: {err}"));
+            }
+        }
+        record = adapter.save_instance(record).map_err(|e| e.to_string())?;
+    }
 
     let response = instance_response(&record);
     Ok(TangleResult(response))
@@ -486,5 +511,28 @@ mod tests {
         let config = r#"{"claw_variant":"wrongclaw"}"#;
         let err = resolve_create_profile("inst-3", config).expect_err("invalid variant");
         assert!(err.contains("unsupported claw_variant"));
+    }
+
+    #[test]
+    fn auto_start_on_create_defaults_true_and_supports_disable_flag() {
+        let _guard = ENV_LOCK.lock().expect("lock");
+        unsafe {
+            std::env::remove_var("OPENCLAW_AUTO_START_ON_CREATE");
+        }
+        assert!(auto_start_on_create());
+
+        unsafe {
+            std::env::set_var("OPENCLAW_AUTO_START_ON_CREATE", "false");
+        }
+        assert!(!auto_start_on_create());
+
+        unsafe {
+            std::env::set_var("OPENCLAW_AUTO_START_ON_CREATE", "1");
+        }
+        assert!(auto_start_on_create());
+
+        unsafe {
+            std::env::remove_var("OPENCLAW_AUTO_START_ON_CREATE");
+        }
     }
 }
