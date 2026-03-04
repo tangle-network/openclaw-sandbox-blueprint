@@ -1,6 +1,6 @@
 # Variant Reference (Verified)
 
-Date verified: March 3, 2026
+Date verified: March 4, 2026
 
 The variant names in this blueprint are intentionally constrained to:
 
@@ -30,16 +30,24 @@ disambiguation baseline for product/runtime mappings.
 - https://www.ironclaw.com/
 - https://github.com/nearai/ironclaw
 
-## Container image status snapshot (March 3, 2026)
+## Container runtime status snapshot (March 4, 2026)
 
-- `openclaw`: confirmed public image (`ghcr.io/openclaw/openclaw:latest`)
-- `nanoclaw`: project/docs are real, but official public image is unverified;
-  repository provides Dockerfile/build scripts for self-building image artifacts
-- this blueprint supports NanoClaw script-based image builds via
-  `OPENCLAW_NANOCLAW_BUILD_CONTEXT` + `OPENCLAW_NANOCLAW_BUILD_SCRIPT`
-- `ironclaw`: public image exists (`nearaidev/ironclaw-nearai-worker:latest`),
-  but deployment references are split across registries and should be validated
-  per environment before production rollout
+- `openclaw`
+  - confirmed public image: `ghcr.io/openclaw/openclaw:latest`
+  - default image startup binds loopback and is not host-reachable via Docker port publish
+  - this blueprint applies a container command profile for official OpenClaw images
+    so hosted instance URLs become reachable
+- `nanoclaw`
+  - no official hosted-service image verified from upstream
+  - upstream `container/build.sh` image (`nanoclaw-agent:*`) is a stdin-driven
+    agent-runner image and exits immediately without JSON input
+  - for hosted instance mode, provide explicit service command/image profile
+    (`OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND`)
+- `ironclaw`
+  - confirmed public worker image: `nearaidev/ironclaw-nearai-worker:latest`
+  - image hosts web gateway successfully when `NEARAI_API_KEY` or
+    `NEARAI_SESSION_TOKEN` is present (non-interactive startup)
+  - without auth env, startup blocks on interactive provider auth prompt
 
 ## Naming collision warning
 

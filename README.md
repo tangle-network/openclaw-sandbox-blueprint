@@ -110,7 +110,8 @@ cargo build --release
 
 ```bash
 cargo test --all
-cargo test -p openclaw-instance-blueprint-lib -- --ignored
+./scripts/ci/run-docker-integration-tests.sh
+./scripts/ci/run-real-variant-runtime-tests.sh # real OpenClaw + IronClaw images
 ```
 
 ### Run (requires Tangle node + service registration)
@@ -199,9 +200,17 @@ Behavior:
 - `create` creates a container from the variant-mapped image.
 - UI port mapping defaults:
   - OpenClaw: `18789`
-  - IronClaw: `3000`
+  - IronClaw: `18789`
   - NanoClaw: inferred from image metadata or explicit env override
 - per-variant UI port override: `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_UI_PORT`
+- per-variant startup command override (runs as `sh -lc <command>`):
+  - `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_CONTAINER_COMMAND`
+- per-variant host env passthrough allowlist (comma-separated):
+  - `OPENCLAW_VARIANT_<OPENCLAW|NANOCLAW|IRONCLAW>_CONTAINER_ENV_KEYS`
+  - values are read from the runner host env and injected as container env
+- startup stabilization check:
+  - `OPENCLAW_DOCKER_STARTUP_STABILIZE_MS` (default `1000`)
+  - if container exits immediately after `start`, lifecycle now fails fast with recent logs
 - `start` runs `docker start`.
 - `stop` runs `docker stop`.
 - `delete` runs `docker rm -f`.
@@ -224,6 +233,16 @@ Behavior:
 
 This repository does not publish or bundle the variant images. You must provide
 valid image references for your environment.
+
+Real-image runtime notes:
+
+- official OpenClaw image (`ghcr.io/openclaw/openclaw`) is loopback-bound by default.
+  The runtime applies a host-reachable startup command automatically for this image.
+- official IronClaw worker image requires non-interactive auth env to avoid startup prompts.
+  Provide `NEARAI_API_KEY` or `NEARAI_SESSION_TOKEN` in the runner host env.
+- NanoClaw upstream `container/build.sh` image is an agent-runner image; for hosted
+  instance mode you should provide a service-oriented command/image via
+  `OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND` (and optional env passthrough).
 
 Agent UI compatibility:
 
@@ -262,8 +281,10 @@ SERVICE_ID=<id> HTTP_RPC_ENDPOINT=<url> KEYSTORE_URI=<uri> \
 - State-changing operations are jobs only (`create`, `start`, `stop`, `delete`).
 - Read-only operations stay in query surfaces (operator HTTP API).
 - Ship in small, composable PRs with explicit validation evidence.
-- CI runs Rust checks plus Docker-backed integration tests in
+- CI runs Rust checks plus synthetic Docker integration tests in
   `.github/workflows/ci.yml`.
+- Use `scripts/ci/run-real-variant-runtime-tests.sh` before releases to verify
+  official OpenClaw and IronClaw runtime images end-to-end.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, commit, and PR standards.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture notes.

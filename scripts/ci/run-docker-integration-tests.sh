@@ -43,4 +43,6 @@ retry_pull() {
 retry_pull "nginx:alpine"
 retry_pull "alpine:3.20"
 
-cargo test -p openclaw-instance-blueprint-lib -- --ignored --test-threads=1
+# Keep this lane fast/deterministic with synthetic docker images.
+cargo test -p openclaw-instance-blueprint-lib runtime_adapter::tests::docker_ -- --ignored --test-threads=1
+cargo test -p openclaw-instance-blueprint-lib docker_operator_api_control_plane_e2e -- --ignored --test-threads=1
