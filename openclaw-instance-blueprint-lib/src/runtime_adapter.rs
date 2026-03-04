@@ -233,15 +233,22 @@ impl DockerRuntimeAdapter {
         discovered.sort_unstable();
         discovered.dedup();
         if !discovered.is_empty() {
-            if *variant == ClawVariant::Openclaw && discovered.contains(&18789) {
-                return Ok(Some(18789));
+            let preferred = match variant {
+                ClawVariant::Openclaw => Some(18789),
+                ClawVariant::Ironclaw => Some(18789),
+                ClawVariant::Nanoclaw => None,
+            };
+            if let Some(port) = preferred
+                && discovered.contains(&port)
+            {
+                return Ok(Some(port));
             }
             return Ok(discovered.first().copied());
         }
 
         match variant {
             ClawVariant::Openclaw => Ok(Some(18789)),
-            ClawVariant::Ironclaw => Ok(Some(3000)),
+            ClawVariant::Ironclaw => Ok(Some(18789)),
             ClawVariant::Nanoclaw => Ok(None),
         }
     }
@@ -271,6 +278,90 @@ impl DockerRuntimeAdapter {
             ClawVariant::Nanoclaw => Some("bash setup.sh".to_string()),
             ClawVariant::Ironclaw => Some("ironclaw onboard".to_string()),
         }
+    }
+
+    fn container_command_for_variant(&self, variant: &ClawVariant, image: &str) -> Option<String> {
+        let key = variant_env_key(variant, "CONTAINER_COMMAND");
+        if let Some(raw) = env_trimmed(&key) {
+            if raw.eq_ignore_ascii_case("none") || raw.eq_ignore_ascii_case("disabled") {
+                return None;
+            }
+            return Some(raw);
+        }
+
+        if *variant == ClawVariant::Openclaw && image.contains("openclaw/openclaw") {
+            // Default official OpenClaw container startup command binds loopback-only and is
+            // unreachable through Docker published ports. We switch to LAN bind and enable
+            // host-header fallback so dynamic per-instance port mappings continue to work.
+            return Some(
+                "node openclaw.mjs config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true --strict-json && node openclaw.mjs gateway --bind lan --port 18789 --allow-unconfigured".to_string(),
+            );
+        }
+
+        None
+    }
+
+    fn container_env_keys_for_variant(&self, variant: &ClawVariant) -> Vec<String> {
+        let key = variant_env_key(variant, "CONTAINER_ENV_KEYS");
+        if let Some(raw) = env_trimmed(&key) {
+            return raw
+                .split(',')
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(ToString::to_string)
+                .collect::<Vec<_>>();
+        }
+
+        match variant {
+            ClawVariant::Openclaw => Vec::new(),
+            ClawVariant::Nanoclaw => vec![
+                "CLAUDE_CODE_OAUTH_TOKEN".to_string(),
+                "ANTHROPIC_API_KEY".to_string(),
+                "OPENAI_API_KEY".to_string(),
+            ],
+            ClawVariant::Ironclaw => vec![
+                "NEARAI_API_KEY".to_string(),
+                "NEARAI_SESSION_TOKEN".to_string(),
+                "NEARAI_API_URL".to_string(),
+                "NEARAI_MODEL".to_string(),
+                "LLM_BACKEND".to_string(),
+                "OPENAI_API_KEY".to_string(),
+                "ANTHROPIC_API_KEY".to_string(),
+            ],
+        }
+    }
+
+    fn validate_variant_runtime_prereqs(
+        &self,
+        variant: &ClawVariant,
+        image: &str,
+        container_command: Option<&str>,
+        env_keys: &[String],
+    ) -> Result<()> {
+        if *variant == ClawVariant::Nanoclaw
+            && image.contains("nanoclaw-agent")
+            && container_command.is_none()
+        {
+            return Err(InstanceError::Store(
+                "nanoclaw-agent image is a stdin-driven one-shot runner; set OPENCLAW_VARIANT_NANOCLAW_CONTAINER_COMMAND to a long-running service command before provisioning this variant".to_string(),
+            ));
+        }
+
+        if *variant != ClawVariant::Ironclaw || !image.contains("ironclaw-nearai-worker") {
+            return Ok(());
+        }
+
+        let has_auth = env_keys
+            .iter()
+            .filter(|key| *key == "NEARAI_API_KEY" || *key == "NEARAI_SESSION_TOKEN")
+            .any(|key| env_trimmed(key).is_some());
+        if has_auth {
+            return Ok(());
+        }
+
+        Err(InstanceError::Store(
+            "ironclaw runtime image requires NEARAI auth env to avoid interactive startup prompts; set NEARAI_API_KEY or NEARAI_SESSION_TOKEN in the runner environment (or override OPENCLAW_VARIANT_IRONCLAW_CONTAINER_ENV_KEYS)".to_string(),
+        ))
     }
 
     fn setup_path_for_variant(&self, variant: &ClawVariant) -> Option<String> {
@@ -396,6 +487,14 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
         let container_name = self.container_name(&input.id, &input.claw_variant);
         let ui_container_port = self.resolve_ui_port(&input.claw_variant, &image)?;
         let ui_credential = UiBearerCredential::generate_with_prefix("claw_ui_");
+        let container_command = self.container_command_for_variant(&input.claw_variant, &image);
+        let container_env_keys = self.container_env_keys_for_variant(&input.claw_variant);
+        self.validate_variant_runtime_prereqs(
+            &input.claw_variant,
+            &image,
+            container_command.as_deref(),
+            &container_env_keys,
+        )?;
         let variant = product_variant(&input.claw_variant);
 
         let mut args = vec![
@@ -424,11 +523,28 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
             "{OPENCLAW_COMPAT_UI_AUTH_MODE_ENV}={}",
             ui_credential.auth_scheme()
         ));
+        args.push("--env".to_string());
+        args.push(format!("OPENCLAW_GATEWAY_TOKEN={}", ui_credential.token()));
+        for key in &container_env_keys {
+            validate_env_key(key)?;
+            if key == "OPENCLAW_GATEWAY_TOKEN" {
+                continue;
+            }
+            if let Some(value) = env_trimmed(key) {
+                args.push("--env".to_string());
+                args.push(format!("{key}={value}"));
+            }
+        }
         if let Some(port) = ui_container_port {
             args.push("-p".to_string());
             args.push(format!("127.0.0.1::{port}"));
         }
         args.push(image.clone());
+        if let Some(command) = container_command {
+            args.push("sh".to_string());
+            args.push("-lc".to_string());
+            args.push(command);
+        }
 
         let container_id_raw = run_docker(&args)?;
         let container_id = container_id_raw.trim().to_string();
@@ -524,7 +640,31 @@ impl InstanceRuntimeAdapter for DockerRuntimeAdapter {
             }
         }
 
-        record.runtime.container_status = Some("running".to_string());
+        let stabilize_ms = env_trimmed("OPENCLAW_DOCKER_STARTUP_STABILIZE_MS")
+            .and_then(|raw| raw.parse::<u64>().ok())
+            .unwrap_or(1000);
+        if stabilize_ms > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(stabilize_ms));
+        }
+        let target = Self::container_ref(record)?;
+        let status = inspect_container_status(&target)?;
+        record.runtime.container_status = Some(status.clone());
+        if status != "running" {
+            let logs = tail_container_logs(&target, 60).unwrap_or_else(|_| String::new());
+            let message = if logs.is_empty() {
+                format!(
+                    "container for instance {} failed to stay running after start (status={status})",
+                    record.id
+                )
+            } else {
+                format!(
+                    "container for instance {} failed to stay running after start (status={status}); recent logs: {logs}",
+                    record.id
+                )
+            };
+            record.runtime.last_error = Some(message.clone());
+            return Err(InstanceError::Store(message));
+        }
         record.runtime.last_error = None;
 
         if self.auto_trigger_setup
@@ -982,6 +1122,39 @@ fn inspect_container_host_port(container_ref: &str, container_port: u16) -> Resu
     Ok(Some(parsed))
 }
 
+fn inspect_container_status(container_ref: &str) -> Result<String> {
+    run_docker(&[
+        "inspect".to_string(),
+        "-f".to_string(),
+        "{{.State.Status}}".to_string(),
+        container_ref.to_string(),
+    ])
+}
+
+fn tail_container_logs(container_ref: &str, lines: usize) -> Result<String> {
+    let output = Command::new("docker")
+        .arg("logs")
+        .arg("--tail")
+        .arg(lines.to_string())
+        .arg(container_ref)
+        .output()
+        .map_err(|e| InstanceError::Store(format!("failed to execute docker logs: {e}")))?;
+
+    let mut combined = String::new();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !stdout.is_empty() {
+        combined.push_str(&stdout);
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !stderr.is_empty() {
+        if !combined.is_empty() {
+            combined.push_str(" | ");
+        }
+        combined.push_str(&stderr);
+    }
+    Ok(combined)
+}
+
 fn validate_env_key(key: &str) -> Result<()> {
     let trimmed = key.trim();
     if trimmed.is_empty() {
@@ -1198,6 +1371,128 @@ mod tests {
     }
 
     #[test]
+    fn openclaw_official_image_uses_host_reachable_default_command() {
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "a".to_string(),
+                nanoclaw: "b".to_string(),
+                ironclaw: "c".to_string(),
+            },
+            auto_pull: false,
+            auto_trigger_setup: false,
+        };
+        let cmd = adapter
+            .container_command_for_variant(
+                &ClawVariant::Openclaw,
+                "ghcr.io/openclaw/openclaw:latest",
+            )
+            .expect("official image default command");
+        assert!(cmd.contains("--bind lan"));
+        assert!(cmd.contains("dangerouslyAllowHostHeaderOriginFallback"));
+        assert!(
+            adapter
+                .container_command_for_variant(&ClawVariant::Openclaw, "nginx:alpine")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn container_env_key_defaults_include_ironclaw_auth_keys() {
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "a".to_string(),
+                nanoclaw: "b".to_string(),
+                ironclaw: "c".to_string(),
+            },
+            auto_pull: false,
+            auto_trigger_setup: false,
+        };
+
+        let ironclaw_keys = adapter.container_env_keys_for_variant(&ClawVariant::Ironclaw);
+        assert!(ironclaw_keys.iter().any(|key| key == "NEARAI_API_KEY"));
+        assert!(
+            ironclaw_keys
+                .iter()
+                .any(|key| key == "NEARAI_SESSION_TOKEN")
+        );
+    }
+
+    #[test]
+    fn ironclaw_worker_image_requires_noninteractive_auth_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "a".to_string(),
+                nanoclaw: "b".to_string(),
+                ironclaw: "c".to_string(),
+            },
+            auto_pull: false,
+            auto_trigger_setup: false,
+        };
+        let keys = adapter.container_env_keys_for_variant(&ClawVariant::Ironclaw);
+
+        unsafe {
+            std::env::remove_var("NEARAI_API_KEY");
+            std::env::remove_var("NEARAI_SESSION_TOKEN");
+        }
+        let err = adapter
+            .validate_variant_runtime_prereqs(
+                &ClawVariant::Ironclaw,
+                "nearaidev/ironclaw-nearai-worker:latest",
+                None,
+                &keys,
+            )
+            .expect_err("worker image should require auth env");
+        assert!(err.to_string().contains("NEARAI"));
+
+        unsafe {
+            std::env::set_var("NEARAI_API_KEY", "test-key");
+        }
+        adapter
+            .validate_variant_runtime_prereqs(
+                &ClawVariant::Ironclaw,
+                "nearaidev/ironclaw-nearai-worker:latest",
+                None,
+                &keys,
+            )
+            .expect("auth env should satisfy prereq");
+        unsafe {
+            std::env::remove_var("NEARAI_API_KEY");
+        }
+    }
+
+    #[test]
+    fn nanoclaw_agent_image_requires_explicit_service_command() {
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "a".to_string(),
+                nanoclaw: "b".to_string(),
+                ironclaw: "c".to_string(),
+            },
+            auto_pull: false,
+            auto_trigger_setup: false,
+        };
+        let err = adapter
+            .validate_variant_runtime_prereqs(
+                &ClawVariant::Nanoclaw,
+                "nanoclaw-agent:latest",
+                None,
+                &[],
+            )
+            .expect_err("nanoclaw runner image should require command override");
+        assert!(err.to_string().contains("CONTAINER_COMMAND"));
+
+        adapter
+            .validate_variant_runtime_prereqs(
+                &ClawVariant::Nanoclaw,
+                "nanoclaw-agent:latest",
+                Some("tail -f /dev/null"),
+                &[],
+            )
+            .expect("explicit command should satisfy prereq");
+    }
+
+    #[test]
     fn product_variant_mapping_is_stable() {
         assert_eq!(
             product_variant(&ClawVariant::Openclaw),
@@ -1388,9 +1683,9 @@ mod tests {
     fn docker_lifecycle_smoke() {
         let adapter = DockerRuntimeAdapter {
             images: DockerImages {
-                openclaw: "alpine:3.20".to_string(),
-                nanoclaw: "alpine:3.20".to_string(),
-                ironclaw: "alpine:3.20".to_string(),
+                openclaw: "nginx:alpine".to_string(),
+                nanoclaw: "nginx:alpine".to_string(),
+                ironclaw: "nginx:alpine".to_string(),
             },
             auto_pull: true,
             auto_trigger_setup: false,

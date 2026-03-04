@@ -1,0 +1,41 @@
+name: Real Variant Runtime
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  real-variant-runtime:
+    name: Real image runtime matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: tangle-network/blueprint
+          ref: main
+          path: blueprint
+
+      - name: Link blueprint SDK checkout
+        run: ln -sfn "$GITHUB_WORKSPACE/blueprint" "$GITHUB_WORKSPACE/../blueprint"
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          cache-on-failure: "true"
+
+      - name: Run real variant runtime tests
+        env:
+          OPENCLAW_IMAGE_OPENCLAW: ghcr.io/openclaw/openclaw:latest
+          OPENCLAW_IMAGE_IRONCLAW: nearaidev/ironclaw-nearai-worker:latest
+        run: ./scripts/ci/run-real-variant-runtime-tests.sh
