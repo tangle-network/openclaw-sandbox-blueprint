@@ -43,6 +43,7 @@
   --glass-bg-strong: rgba(8, 14, 25, 0.95);
   --glass-border: rgba(197, 216, 237, 0.24);
   --glass-border-hover: rgba(197, 216, 237, 0.36);
+  --cloud-elements-textPrimary: var(--claw-elements-textPrimary);
 
 }
 
@@ -90,5 +91,6 @@
   --glass-bg-strong: rgba(255, 255, 255, 0.98);
   --glass-border: rgba(30, 41, 59, 0.2);
   --glass-border-hover: rgba(15, 23, 42, 0.25);
+  --cloud-elements-textPrimary: var(--claw-elements-textPrimary);
 
 }

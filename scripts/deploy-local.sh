@@ -55,6 +55,7 @@ OPERATOR2_ADDR="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
 USER_KEY="0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
 USER_ADDR="0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
 EXTRA_FUNDED_ADDRS="${EXTRA_FUNDED_ADDRS:-0xd04E36A1C370c6115e1C676838AcD0b430d740F3}"
+EXTRA_PROVISION_CALLERS="${EXTRA_PROVISION_CALLERS:-$EXTRA_FUNDED_ADDRS}"
 FUND_TNT_WEI="${FUND_TNT_WEI:-100000000000000000000}" # 100 TNT/native units on local chain
 
 # Tangle local snapshot addresses
@@ -107,13 +108,6 @@ if [[ "$OPENCLAW_RUNTIME_BACKEND" == "docker" ]]; then
     fi
 fi
 
-echo "=== OpenClaw Blueprint — Full Local Deployment ==="
-echo "RPC:         $RPC_URL"
-echo "Chain ID:    $ANVIL_CHAIN_ID"
-echo "Public host: $PUBLIC_HOST"
-echo "Runtime:     $OPENCLAW_RUNTIME_BACKEND"
-echo ""
-
 parse_deploy() {
     echo "$FORGE_OUTPUT" | grep "DEPLOY_${1}=" | sed "s/.*DEPLOY_${1}=//" | tr -d ' '
 }
@@ -129,6 +123,43 @@ to_dec_u64() {
         echo "$raw"
     fi
 }
+
+build_address_array() {
+    local csv="$1"
+    local -a values=()
+    local -A seen=()
+    local item normalized
+
+    while IFS= read -r item; do
+        normalized="$(echo "$item" | xargs)"
+        [[ -z "$normalized" ]] && continue
+        if [[ -z "${seen[$normalized]:-}" ]]; then
+            seen[$normalized]=1
+            values+=("$normalized")
+        fi
+    done < <(echo "$csv" | tr ', ' '\n' | sed '/^$/d')
+
+    local out="["
+    local idx
+    for idx in "${!values[@]}"; do
+        if [[ "$idx" -gt 0 ]]; then
+            out+=","
+        fi
+        out+="${values[$idx]}"
+    done
+    out+="]"
+    echo "$out"
+}
+
+SERVICE_CALLERS_ARRAY="$(build_address_array "$USER_ADDR,$DEPLOYER_ADDR,$EXTRA_PROVISION_CALLERS")"
+
+echo "=== OpenClaw Blueprint — Full Local Deployment ==="
+echo "RPC:         $RPC_URL"
+echo "Chain ID:    $ANVIL_CHAIN_ID"
+echo "Public host: $PUBLIC_HOST"
+echo "Runtime:     $OPENCLAW_RUNTIME_BACKEND"
+echo "Callers:     $SERVICE_CALLERS_ARRAY"
+echo ""
 
 wait_for_http_ready() {
     local url="$1"
@@ -266,7 +297,7 @@ cast send "$TANGLE" "requestService(uint64,address[],bytes,address[],uint64,addr
     "$INSTANCE_BLUEPRINT_ID" \
     "[$OPERATOR1_ADDR,$OPERATOR2_ADDR]" \
     "0x" \
-    "[$USER_ADDR,$DEPLOYER_ADDR]" \
+    "$SERVICE_CALLERS_ARRAY" \
     31536000 \
     "0x0000000000000000000000000000000000000000" \
     0 \
@@ -278,7 +309,7 @@ cast send "$TANGLE" "requestService(uint64,address[],bytes,address[],uint64,addr
     "$TEE_INSTANCE_BLUEPRINT_ID" \
     "[$OPERATOR1_ADDR,$OPERATOR2_ADDR]" \
     "0x" \
-    "[$USER_ADDR,$DEPLOYER_ADDR]" \
+    "$SERVICE_CALLERS_ARRAY" \
     31536000 \
     "0x0000000000000000000000000000000000000000" \
     0 \
@@ -501,6 +532,7 @@ TEE_OPERATOR_API_URL=http://$PUBLIC_HOST:$TEE_OPERATOR_API_PORT
 OPENCLAW_OPERATOR_API_TOKEN=$OPENCLAW_OPERATOR_API_TOKEN
 OPENCLAW_UI_ACCESS_TOKEN=$OPENCLAW_UI_ACCESS_TOKEN
 OPENCLAW_RUNTIME_BACKEND=$OPENCLAW_RUNTIME_BACKEND
+SERVICE_CALLERS_ARRAY=$SERVICE_CALLERS_ARRAY
 
 DEPLOYER_KEY=$DEPLOYER_KEY
 DEPLOYER_ADDR=$DEPLOYER_ADDR
@@ -542,6 +574,8 @@ echo "    TEE:      http://$PUBLIC_HOST:$TEE_OPERATOR_API_PORT"
 echo "  Browser RPC:"
 echo "    HTTP:     $PUBLIC_HTTP_RPC_URL"
 echo "    WS:       $PUBLIC_WS_RPC_URL"
+echo "  Provision callers:"
+echo "    $SERVICE_CALLERS_ARRAY"
 echo ""
 echo "  Auth tokens:"
 echo "    Operator token: $OPENCLAW_OPERATOR_API_TOKEN"

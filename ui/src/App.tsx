@@ -13,6 +13,7 @@ import {
 import { selectedChainIdStore, useSubmitJob } from '@tangle-network/blueprint-ui';
 import {
   AnimatedPage,
+  AppToaster,
   Badge,
   Button,
   Card,
@@ -30,7 +31,9 @@ import {
 import { cn } from '@tangle-network/blueprint-ui';
 import { encodeAbiParameters, formatUnits, isAddress } from 'viem';
 import { useAccount, useBalance, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { toast } from 'sonner';
 import {
+  createSessionFromAccessToken,
   createChatSession,
   fetchInstances,
   fetchTemplates,
@@ -44,10 +47,12 @@ import {
   saveToken,
   sendChatMessage,
   startSetup,
+  requestWalletChallenge,
   teeAttestation,
   teePublicKey,
   teeSealedSecrets,
   updateSshKey,
+  verifyWalletSession,
   type InstanceAccess,
   type InstanceView,
   type TemplatePack,
@@ -114,9 +119,17 @@ type NoticeTone = 'success' | 'error' | 'info';
 type ClawVariant = 'openclaw' | 'nanoclaw' | 'ironclaw';
 type SurfaceTab = 'launch' | 'instances' | 'workspace';
 type WizardStep = 1 | 2 | 3;
+type SessionSource = 'wallet_signature' | 'access_token';
 
 type MainTab = 'workspace' | 'terminal' | 'chat' | 'advanced';
 type PendingSessionDelete = { id: string; title: string };
+type ScopedSession = {
+  token: string;
+  expiresAt: number;
+  owner: string;
+  instanceId: string;
+  source: SessionSource;
+};
 
 const VARIANT_PRESENTATION: Record<
   ClawVariant,
@@ -151,16 +164,6 @@ const VARIANT_PRESENTATION: Record<
   },
 };
 
-function toneClasses(tone: NoticeTone): string {
-  if (tone === 'success') {
-    return 'border-emerald-400/35 bg-emerald-500/12 text-claw-elements-textPrimary';
-  }
-  if (tone === 'error') {
-    return 'border-rose-400/40 bg-rose-500/12 text-claw-elements-textPrimary';
-  }
-  return 'border-sky-400/35 bg-sky-500/10 text-claw-elements-textPrimary';
-}
-
 function statusTone(status: string): 'success' | 'amber' | 'destructive' | 'secondary' {
   if (status === 'running') return 'success';
   if (status === 'creating' || status === 'pending') return 'amber';
@@ -177,6 +180,11 @@ function previewToken(value: string): string {
   if (!value) return 'not set';
   if (value.length <= 10) return value;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function sameAddress(left?: string | null, right?: string | null): boolean {
+  if (!left || !right) return false;
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 function randomSuffix(length = 6): string {
@@ -249,6 +257,33 @@ function parseRpcHexToBigint(value: unknown): bigint | null {
   }
 }
 
+async function signWalletMessage(walletAddress: string, message: string): Promise<string> {
+  const ethereum = browserEthereum();
+  if (!ethereum) {
+    throw new Error('Wallet provider unavailable for signature request.');
+  }
+
+  const attempts: Array<() => Promise<unknown>> = [
+    () => ethereum.request({ method: 'personal_sign', params: [message, walletAddress] }),
+    () => ethereum.request({ method: 'personal_sign', params: [walletAddress, message] }),
+    () => ethereum.request({ method: 'eth_sign', params: [walletAddress, message] }),
+  ];
+
+  let lastError: Error | null = null;
+  for (const attempt of attempts) {
+    try {
+      const signature = await attempt();
+      if (typeof signature === 'string' && signature.trim().length > 0) {
+        return signature;
+      }
+      lastError = new Error('Wallet returned an invalid signature payload.');
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+  throw new Error(`Wallet signature failed: ${lastError?.message ?? 'unknown error'}`);
+}
+
 async function jsonRpcCall<T>(rpcUrl: string, method: string, params: unknown[] = []): Promise<T> {
   const response = await fetch(rpcUrl, {
     method: 'POST',
@@ -274,6 +309,9 @@ async function jsonRpcCall<T>(rpcUrl: string, method: string, params: unknown[] 
 function InstanceRuntimePanel() {
   const [token, setToken] = useState('');
   const [tokenInput, setTokenInput] = useState('');
+  const [scopedSessions, setScopedSessions] = useState<Record<string, ScopedSession>>({});
+  const [instanceAccessTokenInput, setInstanceAccessTokenInput] = useState<Record<string, string>>({});
+  const [isCreatingScopedSession, setIsCreatingScopedSession] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null);
   const [templates, setTemplates] = useState<TemplatePack[]>([]);
   const [instances, setInstances] = useState<InstanceView[]>([]);
@@ -287,6 +325,7 @@ function InstanceRuntimePanel() {
   const [walletCopied, setWalletCopied] = useState(false);
   const [pendingSessionDelete, setPendingSessionDelete] = useState<PendingSessionDelete | null>(null);
   const sessionDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastNoticeRef = useRef<{ tone: NoticeTone; text: string } | null>(null);
   const walletMenuRef = useRef<HTMLDivElement | null>(null);
   const walletMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -634,18 +673,25 @@ function InstanceRuntimePanel() {
   const selectedApiBase = selectedInstance
     ? `/instances/${encodeURIComponent(selectedInstance.id)}`
     : '';
+  const selectedAuthMode: SessionSource =
+    selectedInstance?.uiAccess.authMode === 'access_token' ? 'access_token' : 'wallet_signature';
+  const selectedScopedSession = selectedId ? scopedSessions[selectedId] ?? null : null;
+  const scopedSessionIsValid = Boolean(
+    selectedScopedSession && selectedScopedSession.expiresAt > Math.floor(Date.now() / 1000) + 30,
+  );
+  const scopedToken = scopedSessionIsValid ? selectedScopedSession?.token ?? '' : '';
 
-  const sessions = useSessions(selectedApiBase, token || null);
-  const createSessionMutation = useCreateSession(selectedApiBase, token || null);
-  const deleteSessionMutation = useDeleteSession(selectedApiBase, token || null);
-  const renameSessionMutation = useRenameSession(selectedApiBase, token || null);
+  const sessions = useSessions(selectedApiBase, scopedToken || null);
+  const createSessionMutation = useCreateSession(selectedApiBase, scopedToken || null);
+  const deleteSessionMutation = useDeleteSession(selectedApiBase, scopedToken || null);
+  const renameSessionMutation = useRenameSession(selectedApiBase, scopedToken || null);
   const [activeSessionId, setActiveSessionId] = useState('');
 
   const sessionStream = useSessionStream({
     apiUrl: selectedApiBase,
-    token: token || null,
+    token: scopedToken || null,
     sessionId: activeSessionId,
-    enabled: Boolean(selectedApiBase && token && activeSessionId),
+    enabled: Boolean(selectedApiBase && scopedToken && activeSessionId),
   });
 
   useEffect(() => {
@@ -743,6 +789,10 @@ function InstanceRuntimePanel() {
         if (current && discoveredInstances.some((item) => item.id === current)) {
           return current;
         }
+        if (connectedWallet) {
+          const owned = discoveredInstances.find((item) => sameAddress(item.owner, connectedWallet));
+          if (owned) return owned.id;
+        }
         return discoveredInstances[0]?.id ?? '';
       });
     } catch (error) {
@@ -768,6 +818,10 @@ function InstanceRuntimePanel() {
             if (current && discoveredInstances.some((item) => item.id === current)) {
               return current;
             }
+            if (connectedWallet) {
+              const owned = discoveredInstances.find((item) => sameAddress(item.owner, connectedWallet));
+              if (owned) return owned.id;
+            }
             return discoveredInstances[0]?.id ?? '';
           });
         } catch (retryError) {
@@ -782,7 +836,7 @@ function InstanceRuntimePanel() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [token]);
+  }, [connectedWallet, token]);
 
   useEffect(() => {
     if (!token.trim()) return;
@@ -809,6 +863,87 @@ function InstanceRuntimePanel() {
     setTokenInput(DEMO_TOKEN);
     setNotice({ tone: 'info', text: 'Local token applied.' });
   }, []);
+
+  const ensureScopedSession = useCallback(
+    async (instance: InstanceView): Promise<string> => {
+      const existing = scopedSessions[instance.id];
+      const now = Math.floor(Date.now() / 1000);
+      if (existing && existing.expiresAt > now + 30) {
+        return existing.token;
+      }
+      if (!token.trim()) {
+        throw new Error('Save an operator bearer token before creating an owner session.');
+      }
+
+      setIsCreatingScopedSession(true);
+      try {
+        const authMode: SessionSource =
+          instance.uiAccess.authMode === 'access_token' ? 'access_token' : 'wallet_signature';
+        const session =
+          authMode === 'access_token'
+            ? await (async () => {
+                const accessToken = (instanceAccessTokenInput[instance.id] ?? '').trim();
+                if (!accessToken) {
+                  throw new Error('Enter the instance access token first.');
+                }
+                return createSessionFromAccessToken(token, {
+                  instanceId: instance.id,
+                  accessToken,
+                });
+              })()
+            : await (async () => {
+                if (!connectedWallet) {
+                  throw new Error('Connect the owner wallet to create a scoped session.');
+                }
+                if (!sameAddress(instance.owner, connectedWallet)) {
+                  throw new Error(
+                    `Selected instance is owned by ${truncateAddress(instance.owner)}; connect the owner wallet.`,
+                  );
+                }
+                const challenge = await requestWalletChallenge(token, {
+                  instanceId: instance.id,
+                  walletAddress: connectedWallet,
+                });
+                const signature = await signWalletMessage(connectedWallet, challenge.message);
+                return verifyWalletSession(token, {
+                  challengeId: challenge.challengeId,
+                  signature,
+                });
+              })();
+
+        setScopedSessions((current) => ({
+          ...current,
+          [instance.id]: {
+            token: session.token,
+            expiresAt: session.expiresAt,
+            owner: session.owner,
+            instanceId: session.instanceId,
+            source: authMode,
+          },
+        }));
+        return session.token;
+      } finally {
+        setIsCreatingScopedSession(false);
+      }
+    },
+    [connectedWallet, instanceAccessTokenInput, scopedSessions, token],
+  );
+
+  const onCreateScopedSession = useCallback(async () => {
+    if (!selectedInstance) return;
+    try {
+      await ensureScopedSession(selectedInstance);
+      setNotice({
+        tone: 'success',
+        text:
+          selectedAuthMode === 'wallet_signature'
+            ? 'Owner wallet session created.'
+            : 'Access-token session created.',
+      });
+    } catch (error) {
+      setNotice({ tone: 'error', text: `Session creation failed: ${(error as Error).message}` });
+    }
+  }, [ensureScopedSession, selectedAuthMode, selectedInstance]);
 
   const startProvisionFlow = useCallback((variant: ClawVariant) => {
     const generated = generateProvisionIdentity(variant);
@@ -943,6 +1078,13 @@ function InstanceRuntimePanel() {
   const onSubmitLifecycleJob = useCallback(
     async (jobId: number, label: string) => {
       if (!selectedInstance) return;
+      if (!connectedWallet || !sameAddress(selectedInstance.owner, connectedWallet)) {
+        setNotice({
+          tone: 'error',
+          text: `Action blocked: selected instance is owned by ${truncateAddress(selectedInstance.owner)}. Select your own instance.`,
+        });
+        return;
+      }
       if (!isWalletConnected) {
         setNotice({ tone: 'error', text: 'Connect your wallet before submitting lifecycle jobs.' });
         return;
@@ -977,7 +1119,7 @@ function InstanceRuntimePanel() {
       setNotice({ tone: 'info', text: `${label} submitted (${hash}). Refreshing status...` });
       setTimeout(() => void refresh(), 2500);
     },
-    [isWalletConnected, refresh, resolveServiceId, selectedInstance, submitJob, txError, ensureTargetChain],
+    [connectedWallet, isWalletConnected, refresh, resolveServiceId, selectedInstance, submitJob, txError, ensureTargetChain],
   );
 
   const confirmAndDeleteInstance = useCallback(async () => {
@@ -994,41 +1136,45 @@ function InstanceRuntimePanel() {
   const onOneClickSetup = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const updated = await startSetup(token, selectedInstance.id, {});
+      const scoped = await ensureScopedSession(selectedInstance);
+      const updated = await startSetup(scoped, selectedInstance.id, {});
       setInstances((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setNotice({ tone: 'success', text: `Setup started for ${selectedInstance.name}.` });
     } catch (error) {
       setNotice({ tone: 'error', text: `Setup failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, token]);
+  }, [ensureScopedSession, selectedInstance]);
 
   const onSetupWithEnv = useCallback(async () => {
     if (!selectedInstance) return;
     try {
       const env = parseEnvText(setupEnvText);
-      const updated = await startSetup(token, selectedInstance.id, env);
+      const scoped = await ensureScopedSession(selectedInstance);
+      const updated = await startSetup(scoped, selectedInstance.id, env);
       setInstances((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setNotice({ tone: 'success', text: `Setup started with ${Object.keys(env).length} env override(s).` });
     } catch (error) {
       setNotice({ tone: 'error', text: `Advanced setup failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, setupEnvText, token]);
+  }, [ensureScopedSession, selectedInstance, setupEnvText]);
 
   const onFetchInstanceAccess = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const access = await getInstanceAccess(token, selectedInstance.id);
+      const scoped = await ensureScopedSession(selectedInstance);
+      const access = await getInstanceAccess(scoped, selectedInstance.id);
       setInstanceAccess(access);
       setNotice({ tone: 'success', text: 'Instance access credentials retrieved.' });
     } catch (error) {
       setNotice({ tone: 'error', text: `Access retrieval failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, token]);
+  }, [ensureScopedSession, selectedInstance]);
 
   const onRunTerminalCommand = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const output = await runTerminalCommand(token, selectedInstance.id, terminalCommand);
+      const scoped = await ensureScopedSession(selectedInstance);
+      const output = await runTerminalCommand(scoped, selectedInstance.id, terminalCommand);
       const text = [
         `Exit: ${output.exitCode}`,
         '',
@@ -1043,25 +1189,27 @@ function InstanceRuntimePanel() {
     } catch (error) {
       setNotice({ tone: 'error', text: `Terminal command failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, terminalCommand, token]);
+  }, [ensureScopedSession, selectedInstance, terminalCommand]);
 
   const onQuickChat = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const session = await createChatSession(token, selectedInstance.id, 'Quick prompt');
-      await sendChatMessage(token, selectedInstance.id, session.id, quickChatPrompt);
-      const messages = await getSessionMessages(token, selectedInstance.id, session.id);
+      const scoped = await ensureScopedSession(selectedInstance);
+      const session = await createChatSession(scoped, selectedInstance.id, 'Quick prompt');
+      await sendChatMessage(scoped, selectedInstance.id, session.id, quickChatPrompt);
+      const messages = await getSessionMessages(scoped, selectedInstance.id, session.id);
       setNotice({ tone: 'info', text: `Assistant reply: ${firstAssistantReply(messages)}` });
     } catch (error) {
       setNotice({ tone: 'error', text: `Quick chat failed: ${(error as Error).message}` });
     }
-  }, [quickChatPrompt, selectedInstance, token]);
+  }, [ensureScopedSession, quickChatPrompt, selectedInstance]);
 
   const onSshUpsert = useCallback(async (method: 'POST' | 'DELETE') => {
     if (!selectedInstance) return;
     try {
+      const scoped = await ensureScopedSession(selectedInstance);
       await updateSshKey(
-        token,
+        scoped,
         selectedInstance.id,
         { username: sshUsername.trim(), publicKey: sshPublicKey.trim() },
         method,
@@ -1073,34 +1221,37 @@ function InstanceRuntimePanel() {
     } catch (error) {
       setNotice({ tone: 'error', text: `SSH update failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, sshPublicKey, sshUsername, token]);
+  }, [ensureScopedSession, selectedInstance, sshPublicKey, sshUsername]);
 
   const onTeePublicKey = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const payload = await teePublicKey(token, selectedInstance.id);
+      const scoped = await ensureScopedSession(selectedInstance);
+      const payload = await teePublicKey(scoped, selectedInstance.id);
       setTeeOutput(JSON.stringify(payload, null, 2));
       setNotice({ tone: 'success', text: 'TEE public key fetched.' });
     } catch (error) {
       setNotice({ tone: 'error', text: `TEE public key failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, token]);
+  }, [ensureScopedSession, selectedInstance]);
 
   const onTeeAttestation = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const payload = await teeAttestation(token, selectedInstance.id);
+      const scoped = await ensureScopedSession(selectedInstance);
+      const payload = await teeAttestation(scoped, selectedInstance.id);
       setTeeOutput(JSON.stringify(payload, null, 2));
       setNotice({ tone: 'success', text: 'TEE attestation fetched.' });
     } catch (error) {
       setNotice({ tone: 'error', text: `TEE attestation failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, token]);
+  }, [ensureScopedSession, selectedInstance]);
 
   const onTeeSealedSecret = useCallback(async () => {
     if (!selectedInstance) return;
     try {
-      const payload = await teeSealedSecrets(token, selectedInstance.id, {
+      const scoped = await ensureScopedSession(selectedInstance);
+      const payload = await teeSealedSecrets(scoped, selectedInstance.id, {
         algorithm: teeAlgorithm,
         ciphertext: parseByteSequence(teeCiphertext),
         nonce: parseByteSequence(teeNonce),
@@ -1110,9 +1261,10 @@ function InstanceRuntimePanel() {
     } catch (error) {
       setNotice({ tone: 'error', text: `TEE sealed secret failed: ${(error as Error).message}` });
     }
-  }, [selectedInstance, teeAlgorithm, teeCiphertext, teeNonce, token]);
+  }, [ensureScopedSession, selectedInstance, teeAlgorithm, teeCiphertext, teeNonce]);
 
   const hasToken = token.trim().length > 0;
+  const hasScopedSession = scopedToken.trim().length > 0;
   const canProvision = Boolean(provisionName.trim() && provisionTemplateId.trim());
   const selectedProvisionServiceId = resolveServiceId(provisionExecutionTarget);
   const totalInstances = instances.length;
@@ -1127,6 +1279,9 @@ function InstanceRuntimePanel() {
   const selectedInstanceServiceId = selectedInstance
     ? resolveServiceId(selectedInstance.executionTarget === 'tee' ? 'tee' : 'standard')
     : null;
+  const selectedInstanceOwnedByWallet = Boolean(
+    selectedInstance && connectedWallet && sameAddress(selectedInstance.owner, connectedWallet),
+  );
   const lifecycleTxBusy = txStatus === 'signing' || txStatus === 'pending' || isSwitchingChain;
   const walletLabel = isWalletConnected ? truncateAddress(connectedWallet) : 'Wallet Disconnected';
   const walletProviderBalanceWei = parseRpcHexToBigint(walletBalanceRpcHex);
@@ -1154,17 +1309,41 @@ function InstanceRuntimePanel() {
       ? 'n/a'
       : chainId === TARGET_CHAIN_ID
         ? `${TARGET_CHAIN_NAME} (${chainId})`
-        : `Chain ${chainId}`;
+      : `Chain ${chainId}`;
   const wizardAccessReady = hasToken && (DEMO_MODE || (isWalletConnected && !isWrongChain));
+  const selectedAccessTokenDraft = selectedInstance ? (instanceAccessTokenInput[selectedInstance.id] ?? '') : '';
+  const scopedSessionExpiryLabel =
+    selectedScopedSession && scopedSessionIsValid
+      ? new Date(selectedScopedSession.expiresAt * 1000).toLocaleTimeString()
+      : 'not issued';
 
   useEffect(() => {
     if (!notice) return;
-    if (notice.tone === 'error' || pendingSessionDelete) return;
-    const timeout = setTimeout(() => {
-      setNotice((current) => (current === notice ? null : current));
-    }, 4_500);
-    return () => clearTimeout(timeout);
-  }, [notice, pendingSessionDelete]);
+    if (lastNoticeRef.current === notice) return;
+    lastNoticeRef.current = notice;
+
+    if (pendingSessionDelete) {
+      toast.info(notice.text, {
+        id: 'pending-session-delete',
+        duration: 8_500,
+        action: {
+          label: 'Undo',
+          onClick: undoPendingSessionDelete,
+        },
+      });
+      setNotice(null);
+      return;
+    }
+
+    if (notice.tone === 'success') {
+      toast.success(notice.text);
+    } else if (notice.tone === 'error') {
+      toast.error(notice.text, { duration: 6_000 });
+    } else {
+      toast.info(notice.text);
+    }
+    setNotice(null);
+  }, [notice, pendingSessionDelete, undoPendingSessionDelete]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1184,6 +1363,7 @@ function InstanceRuntimePanel() {
 
   return (
     <div className="min-h-screen claw-app-bg text-claw-elements-textPrimary">
+      <AppToaster tone="cloud" />
       <AnimatedPage className="mx-auto max-w-6xl px-4 pb-8 pt-3 sm:px-6 space-y-3">
         <header className="space-y-2">
           <div className="flex items-center justify-between gap-3">
@@ -1311,33 +1491,6 @@ function InstanceRuntimePanel() {
             </div>
           </div>
         </header>
-
-        {notice ? (
-          <div className="sticky top-2 z-30 w-full">
-            <div
-              className={cn(
-                'mx-auto max-w-3xl rounded-lg border px-3 py-2 text-sm shadow-[0_6px_14px_rgba(2,6,23,0.16)]',
-                toneClasses(notice.tone),
-              )}
-              role={notice.tone === 'error' ? 'alert' : 'status'}
-              aria-live="polite"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 flex-1">{notice.text}</p>
-                <div className="flex items-center gap-2">
-                  {pendingSessionDelete ? (
-                    <Button size="sm" variant="secondary" onClick={undoPendingSessionDelete}>
-                      Undo
-                    </Button>
-                  ) : null}
-                  <Button size="sm" variant="ghost" onClick={() => setNotice(null)}>
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {surfaceTab === 'launch' ? (
           <section className="space-y-4">
@@ -1801,6 +1954,9 @@ function InstanceRuntimePanel() {
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs">
                         <Badge variant="secondary">{instance.clawVariant}</Badge>
+                        <Badge variant={connectedWallet && sameAddress(instance.owner, connectedWallet) ? 'success' : 'secondary'}>
+                          {connectedWallet && sameAddress(instance.owner, connectedWallet) ? 'owned' : 'external'}
+                        </Badge>
                         <Badge variant={instance.executionTarget === 'tee' ? 'amber' : 'secondary'}>
                           {instance.executionTarget}
                         </Badge>
@@ -1830,6 +1986,9 @@ function InstanceRuntimePanel() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant={statusTone(selectedInstance.status)}>{selectedInstance.status}</Badge>
+                    <Badge variant={selectedInstanceOwnedByWallet ? 'success' : 'secondary'}>
+                      {selectedInstanceOwnedByWallet ? 'owned' : 'external'}
+                    </Badge>
                     <Badge variant="secondary">service {selectedInstanceServiceId?.toString() ?? 'missing'}</Badge>
                   </div>
                 </div>
@@ -1840,7 +1999,12 @@ function InstanceRuntimePanel() {
                     size="sm"
                     variant="secondary"
                     onClick={() => void onSubmitLifecycleJob(JOB_START, 'Start Instance')}
-                    disabled={lifecycleTxBusy || !isWalletConnected || selectedInstance.status !== 'stopped'}
+                    disabled={
+                      lifecycleTxBusy ||
+                      !isWalletConnected ||
+                      !selectedInstanceOwnedByWallet ||
+                      selectedInstance.status !== 'stopped'
+                    }
                   >
                     Start
                   </Button>
@@ -1848,7 +2012,12 @@ function InstanceRuntimePanel() {
                     size="sm"
                     variant="secondary"
                     onClick={() => void onSubmitLifecycleJob(JOB_STOP, 'Stop Instance')}
-                    disabled={lifecycleTxBusy || !isWalletConnected || selectedInstance.status !== 'running'}
+                    disabled={
+                      lifecycleTxBusy ||
+                      !isWalletConnected ||
+                      !selectedInstanceOwnedByWallet ||
+                      selectedInstance.status !== 'running'
+                    }
                   >
                     Stop
                   </Button>
@@ -1856,7 +2025,12 @@ function InstanceRuntimePanel() {
                     size="sm"
                     variant="destructive"
                     onClick={() => void confirmAndDeleteInstance()}
-                    disabled={lifecycleTxBusy || !isWalletConnected || selectedInstance.status === 'deleted'}
+                    disabled={
+                      lifecycleTxBusy ||
+                      !isWalletConnected ||
+                      !selectedInstanceOwnedByWallet ||
+                      selectedInstance.status === 'deleted'
+                    }
                   >
                     Delete
                   </Button>
@@ -1866,6 +2040,60 @@ function InstanceRuntimePanel() {
                   <Button size="sm" variant="ghost" onClick={() => void onFetchInstanceAccess()}>
                     Fetch Access
                   </Button>
+                </div>
+
+                <div className="rounded-lg border border-claw-elements-dividerColor px-3 py-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm">Owner Session</p>
+                      <p className="text-xs text-claw-elements-textTertiary">
+                        Auth mode: {selectedAuthMode} · session {hasScopedSession ? 'ready' : 'required'}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={hasScopedSession ? 'secondary' : 'default'}
+                      onClick={() => void onCreateScopedSession()}
+                      disabled={
+                        isCreatingScopedSession ||
+                        !hasToken ||
+                        (selectedAuthMode === 'wallet_signature' &&
+                          (!isWalletConnected || !selectedInstanceOwnedByWallet))
+                      }
+                    >
+                      {isCreatingScopedSession
+                        ? 'Authorizing…'
+                        : selectedAuthMode === 'wallet_signature'
+                          ? hasScopedSession
+                            ? 'Refresh Owner Session'
+                            : 'Create Owner Session'
+                          : hasScopedSession
+                            ? 'Refresh Access Session'
+                            : 'Create Access Session'}
+                    </Button>
+                  </div>
+                  {selectedAuthMode === 'access_token' ? (
+                    <div className="space-y-1">
+                      <label htmlFor="instance_access_token" className="text-xs text-claw-elements-textTertiary">
+                        Instance Access Token
+                      </label>
+                      <Input
+                        id="instance_access_token"
+                        type="password"
+                        value={selectedAccessTokenDraft}
+                        onChange={(event) =>
+                          setInstanceAccessTokenInput((current) => ({
+                            ...current,
+                            [selectedInstance.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="instance access token"
+                      />
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-claw-elements-textTertiary">
+                    Session expires: {scopedSessionExpiryLabel}
+                  </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1886,6 +2114,11 @@ function InstanceRuntimePanel() {
                     <p className="text-xs font-data truncate">{selectedInstance.runtime.setupUrl ?? 'n/a'}</p>
                   </div>
                 </div>
+                {connectedWallet && !selectedInstanceOwnedByWallet ? (
+                  <div className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs claw-text-warning">
+                    Connected wallet does not own this instance. Lifecycle transactions are disabled.
+                  </div>
+                ) : null}
 
                 {instanceAccess ? (
                   <div className="rounded-lg border border-claw-elements-dividerColor px-3 py-3 text-xs font-data space-y-1">
@@ -1919,12 +2152,14 @@ function InstanceRuntimePanel() {
 
                   <TabsContent value="terminal" className="pt-4">
                     <div className="h-[min(560px,68dvh)] min-h-[360px] rounded-xl border border-claw-elements-dividerColor overflow-hidden bg-[#070d15]">
-                      {token ? (
+                      {scopedToken ? (
                         <Suspense fallback={<div className="p-4 text-sm">Loading Terminal…</div>}>
-                          <TerminalView apiUrl={selectedApiBase} token={token} title="Runtime Terminal" subtitle="Scoped shell" />
+                          <TerminalView apiUrl={selectedApiBase} token={scopedToken} title="Runtime Terminal" subtitle="Scoped shell" />
                         </Suspense>
                       ) : (
-                        <div className="p-6 text-sm text-claw-elements-textSecondary">Save a token first.</div>
+                        <div className="p-6 text-sm text-claw-elements-textSecondary">
+                          Create an owner session to open terminal access.
+                        </div>
                       )}
                     </div>
                   </TabsContent>
@@ -1950,7 +2185,7 @@ function InstanceRuntimePanel() {
                                 },
                               })
                             }
-                            disabled={!selectedApiBase || !token || createSessionMutation.isPending}
+                            disabled={!selectedApiBase || !scopedToken || createSessionMutation.isPending}
                           >
                             {createSessionMutation.isPending ? 'Creating…' : 'New Session'}
                           </Button>
