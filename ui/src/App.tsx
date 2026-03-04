@@ -1135,6 +1135,13 @@ function InstanceRuntimePanel() {
 
   const onOneClickSetup = useCallback(async () => {
     if (!selectedInstance) return;
+    if (!selectedInstance.runtime.setupCommand && !selectedInstance.runtime.setupUrl) {
+      setNotice({
+        tone: 'error',
+        text: 'Setup is not available for this runtime backend yet.',
+      });
+      return;
+    }
     try {
       const scoped = await ensureScopedSession(selectedInstance);
       const updated = await startSetup(scoped, selectedInstance.id, {});
@@ -1160,6 +1167,13 @@ function InstanceRuntimePanel() {
 
   const onFetchInstanceAccess = useCallback(async () => {
     if (!selectedInstance) return;
+    if (!selectedInstance.runtime.hasUiBearerToken) {
+      setNotice({
+        tone: 'error',
+        text: 'Instance UI bearer token is not configured for this runtime yet.',
+      });
+      return;
+    }
     try {
       const scoped = await ensureScopedSession(selectedInstance);
       const access = await getInstanceAccess(scoped, selectedInstance.id);
@@ -1279,6 +1293,10 @@ function InstanceRuntimePanel() {
   const selectedInstanceServiceId = selectedInstance
     ? resolveServiceId(selectedInstance.executionTarget === 'tee' ? 'tee' : 'standard')
     : null;
+  const selectedInstanceSetupCapable = Boolean(
+    selectedInstance && (selectedInstance.runtime.setupCommand || selectedInstance.runtime.setupUrl),
+  );
+  const selectedInstanceAccessCapable = Boolean(selectedInstance?.runtime.hasUiBearerToken);
   const selectedInstanceOwnedByWallet = Boolean(
     selectedInstance && connectedWallet && sameAddress(selectedInstance.owner, connectedWallet),
   );
@@ -2034,10 +2052,19 @@ function InstanceRuntimePanel() {
                   >
                     Delete
                   </Button>
-                  <Button size="sm" onClick={() => void onOneClickSetup()} disabled={selectedInstance.status !== 'running'}>
+                  <Button
+                    size="sm"
+                    onClick={() => void onOneClickSetup()}
+                    disabled={selectedInstance.status !== 'running' || !selectedInstanceSetupCapable}
+                  >
                     Start Setup
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => void onFetchInstanceAccess()}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void onFetchInstanceAccess()}
+                    disabled={!selectedInstanceAccessCapable}
+                  >
                     Fetch Access
                   </Button>
                 </div>
