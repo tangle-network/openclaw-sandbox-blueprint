@@ -786,13 +786,20 @@ function InstanceRuntimePanel() {
       setTemplates(templatePacks);
       setInstances(discoveredInstances);
       setSelectedId((current) => {
-        if (current && discoveredInstances.some((item) => item.id === current)) {
-          return current;
+        const owned = connectedWallet
+          ? discoveredInstances.find((item) => sameAddress(item.owner, connectedWallet))
+          : null;
+        if (current) {
+          const active = discoveredInstances.find((item) => item.id === current);
+          if (active) {
+            if (!connectedWallet || sameAddress(active.owner, connectedWallet)) {
+              return current;
+            }
+            if (owned) return owned.id;
+            return current;
+          }
         }
-        if (connectedWallet) {
-          const owned = discoveredInstances.find((item) => sameAddress(item.owner, connectedWallet));
-          if (owned) return owned.id;
-        }
+        if (owned) return owned.id;
         return discoveredInstances[0]?.id ?? '';
       });
     } catch (error) {
@@ -815,13 +822,20 @@ function InstanceRuntimePanel() {
           setTemplates(templatePacks);
           setInstances(discoveredInstances);
           setSelectedId((current) => {
-            if (current && discoveredInstances.some((item) => item.id === current)) {
-              return current;
+            const owned = connectedWallet
+              ? discoveredInstances.find((item) => sameAddress(item.owner, connectedWallet))
+              : null;
+            if (current) {
+              const active = discoveredInstances.find((item) => item.id === current);
+              if (active) {
+                if (!connectedWallet || sameAddress(active.owner, connectedWallet)) {
+                  return current;
+                }
+                if (owned) return owned.id;
+                return current;
+              }
             }
-            if (connectedWallet) {
-              const owned = discoveredInstances.find((item) => sameAddress(item.owner, connectedWallet));
-              if (owned) return owned.id;
-            }
+            if (owned) return owned.id;
             return discoveredInstances[0]?.id ?? '';
           });
         } catch (retryError) {
@@ -1154,6 +1168,13 @@ function InstanceRuntimePanel() {
 
   const onSetupWithEnv = useCallback(async () => {
     if (!selectedInstance) return;
+    if (!selectedInstance.runtime.setupCommand && !selectedInstance.runtime.setupUrl) {
+      setNotice({
+        tone: 'error',
+        text: 'Setup is not available for this runtime backend yet.',
+      });
+      return;
+    }
     try {
       const env = parseEnvText(setupEnvText);
       const scoped = await ensureScopedSession(selectedInstance);
@@ -2081,12 +2102,7 @@ function InstanceRuntimePanel() {
                       size="sm"
                       variant={hasScopedSession ? 'secondary' : 'default'}
                       onClick={() => void onCreateScopedSession()}
-                      disabled={
-                        isCreatingScopedSession ||
-                        !hasToken ||
-                        (selectedAuthMode === 'wallet_signature' &&
-                          (!isWalletConnected || !selectedInstanceOwnedByWallet))
-                      }
+                      disabled={isCreatingScopedSession}
                     >
                       {isCreatingScopedSession
                         ? 'Authorizing…'
@@ -2099,6 +2115,19 @@ function InstanceRuntimePanel() {
                             : 'Create Access Session'}
                     </Button>
                   </div>
+                  {!hasToken ? (
+                    <p className="text-xs claw-text-warning">Save an operator token first to mint a scoped session.</p>
+                  ) : null}
+                  {selectedAuthMode === 'wallet_signature' && !isWalletConnected ? (
+                    <p className="text-xs claw-text-warning">Connect the owner wallet to create a scoped session.</p>
+                  ) : null}
+                  {selectedAuthMode === 'wallet_signature' &&
+                  isWalletConnected &&
+                  !selectedInstanceOwnedByWallet ? (
+                    <p className="text-xs claw-text-warning">
+                      This instance is owned by {truncateAddress(selectedInstance.owner)}. Select an owned instance.
+                    </p>
+                  ) : null}
                   {selectedAuthMode === 'access_token' ? (
                     <div className="space-y-1">
                       <label htmlFor="instance_access_token" className="text-xs text-claw-elements-textTertiary">
@@ -2172,9 +2201,18 @@ function InstanceRuntimePanel() {
                       placeholder={'OPENCLAW_THEME=night\nOPENCLAW_REGION=us-west'}
                       className="min-h-28 font-data"
                     />
-                    <Button variant="secondary" onClick={() => void onSetupWithEnv()}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => void onSetupWithEnv()}
+                      disabled={selectedInstance.status !== 'running' || !selectedInstanceSetupCapable}
+                    >
                       Start setup with env
                     </Button>
+                    {!selectedInstanceSetupCapable ? (
+                      <p className="text-xs claw-text-warning">
+                        Setup not supported on current runtime backend. Use docker runtime for setup execution.
+                      </p>
+                    ) : null}
                   </TabsContent>
 
                   <TabsContent value="terminal" className="pt-4">
