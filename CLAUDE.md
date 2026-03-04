@@ -6,6 +6,10 @@ This repo is an instance-blueprint product layer over shared sandbox runtime
 contracts. Keep it greenfield-clean: no legacy compatibility shims unless
 explicitly required by a live production dependency.
 
+TEE policy for this repo:
+- Use `sandbox-runtime` as the single TEE runtime/sealed-secrets primitive layer.
+- Do not introduce parallel TEE lifecycle/secrets abstractions in this repo.
+
 ## Verified Runtime Truths (March 4, 2026)
 
 - `openclaw` official image: `ghcr.io/openclaw/openclaw:latest`

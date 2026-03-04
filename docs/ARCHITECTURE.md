@@ -94,6 +94,9 @@ HTTP API (axum):
 - `GET /instances/{id}` — instance detail
 - `GET /instances/{id}/access` — fetch per-instance UI bearer token (scoped session only)
 - `POST /instances/{id}/setup/start` — trigger variant setup bootstrap (scoped session only)
+- `GET /instances/{id}/tee/public-key` — fetch TEE-bound public key (scoped session only, TEE-only instances)
+- `POST /instances/{id}/tee/sealed-secrets` — forward encrypted secrets blob (scoped session only, TEE-only instances)
+- `GET /instances/{id}/tee/attestation` — fetch current TEE attestation (scoped session only, TEE-only instances)
 - `POST /instances/{id}/ssh` and `DELETE /instances/{id}/ssh` — SSH key management
 - `POST /instances/{id}/terminals` — create terminal session
 - `GET /instances/{id}/terminals/{terminalId}/stream` — terminal SSE stream

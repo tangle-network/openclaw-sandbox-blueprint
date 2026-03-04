@@ -14,6 +14,9 @@ use sandbox_runtime::live_operator_sessions::{
     sse_from_terminal_output,
 };
 use sandbox_runtime::session_auth::extract_bearer_token;
+use sandbox_runtime::tee::AttestationReport;
+use sandbox_runtime::tee::sealed_secrets::{SealedSecret, SealedSecretResult, TeePublicKey};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, watch};
 use tracing::error;
@@ -23,7 +26,7 @@ use crate::query::{get_instance_view, list_instance_views, load_template_packs};
 use crate::runtime_adapter::{
     InstanceRuntimeAdapter, RuntimeSshKeyRequest, instance_runtime_adapter,
 };
-use crate::state::{ClawVariant, InstanceRecord};
+use crate::state::{ClawVariant, ExecutionTarget, InstanceRecord};
 
 #[derive(Clone)]
 struct ApiState {
@@ -119,6 +122,12 @@ struct StartSetupRequest {
     env: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InjectSealedSecretsRequest {
+    sealed_secret: SealedSecret,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InstanceAccessResponse {
@@ -136,6 +145,30 @@ struct SessionResponse {
     expires_at: i64,
     instance_id: String,
     owner: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeePublicKeyResponse {
+    instance_id: String,
+    public_key: TeePublicKey,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeeAttestationResponse {
+    instance_id: String,
+    attestation: AttestationReport,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeeSealedSecretsResponse {
+    instance_id: String,
+    success: bool,
+    secrets_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -270,6 +303,12 @@ pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch
         .route("/instances/{id}", get(instance_by_id))
         .route("/instances/{id}/access", get(instance_access))
         .route("/instances/{id}/setup/start", post(start_instance_setup))
+        .route("/instances/{id}/tee/public-key", get(tee_public_key))
+        .route(
+            "/instances/{id}/tee/sealed-secrets",
+            post(tee_sealed_secrets),
+        )
+        .route("/instances/{id}/tee/attestation", get(tee_attestation))
         .route(
             "/instances/{id}/ssh",
             post(provision_ssh_key).delete(revoke_ssh_key),
@@ -492,6 +531,176 @@ async fn start_instance_setup(
         return Err(ApiError::NotFound(format!("instance not found: {id}")));
     };
     Ok(Json(view))
+}
+
+async fn tee_public_key(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<TeePublicKeyResponse>, ApiError> {
+    let (record, _) = load_scoped_instance(
+        &state,
+        &headers,
+        &id,
+        None,
+        "operator tokens are not allowed for tee key exchange",
+    )?;
+    ensure_tee_instance(&record)?;
+
+    let public_key: TeePublicKey = tee_proxy_get(&record, "/tee/public-key").await?;
+    Ok(Json(TeePublicKeyResponse {
+        instance_id: record.id,
+        public_key,
+    }))
+}
+
+async fn tee_sealed_secrets(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<InjectSealedSecretsRequest>,
+) -> Result<Json<TeeSealedSecretsResponse>, ApiError> {
+    let (record, _) = load_scoped_instance(
+        &state,
+        &headers,
+        &id,
+        None,
+        "operator tokens are not allowed for tee sealed secrets",
+    )?;
+    ensure_tee_instance(&record)?;
+
+    let result: SealedSecretResult =
+        tee_proxy_post(&record, "/tee/sealed-secrets", &request.sealed_secret).await?;
+    Ok(Json(TeeSealedSecretsResponse {
+        instance_id: record.id,
+        success: result.success,
+        secrets_count: result.secrets_count,
+        error: result.error,
+    }))
+}
+
+async fn tee_attestation(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<TeeAttestationResponse>, ApiError> {
+    let (record, _) = load_scoped_instance(
+        &state,
+        &headers,
+        &id,
+        None,
+        "operator tokens are not allowed for tee attestation",
+    )?;
+    ensure_tee_instance(&record)?;
+
+    let attestation: AttestationReport = tee_proxy_get(&record, "/tee/attestation").await?;
+    Ok(Json(TeeAttestationResponse {
+        instance_id: record.id,
+        attestation,
+    }))
+}
+
+fn ensure_tee_instance(record: &InstanceRecord) -> Result<(), ApiError> {
+    if record.execution_target != ExecutionTarget::Tee {
+        return Err(ApiError::BadRequest(format!(
+            "instance {} is not tee-targeted",
+            record.id
+        )));
+    }
+    Ok(())
+}
+
+fn tee_proxy_url_and_token(
+    record: &InstanceRecord,
+    path: &str,
+) -> Result<(String, String), ApiError> {
+    let Some(base_url) = record.runtime.ui_local_url.as_deref() else {
+        return Err(ApiError::BadRequest(format!(
+            "instance {} does not expose a local UI endpoint",
+            record.id
+        )));
+    };
+    let Some(token) = record.runtime.ui_bearer_token.as_deref() else {
+        return Err(ApiError::BadRequest(format!(
+            "instance {} missing UI bearer token for tee proxy request",
+            record.id
+        )));
+    };
+    let url = format!(
+        "{}/{}",
+        base_url.trim_end_matches('/'),
+        path.trim_start_matches('/')
+    );
+    Ok((url, token.to_string()))
+}
+
+async fn tee_proxy_get<R>(record: &InstanceRecord, path: &str) -> Result<R, ApiError>
+where
+    R: DeserializeOwned,
+{
+    let (url, token) = tee_proxy_url_and_token(record, path)?;
+    let response = reqwest::Client::new()
+        .get(&url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("tee proxy request failed for `{path}`: {e}")))?;
+    let status = response.status();
+    let body = response.text().await.map_err(|e| {
+        ApiError::BadRequest(format!("tee proxy response read failed for `{path}`: {e}"))
+    })?;
+    if !status.is_success() {
+        return Err(ApiError::BadRequest(format!(
+            "tee endpoint `{path}` returned {}: {}",
+            status.as_u16(),
+            trim_http_error_body(&body)
+        )));
+    }
+    serde_json::from_str(&body).map_err(|e| {
+        ApiError::BadRequest(format!("tee endpoint `{path}` returned invalid JSON: {e}"))
+    })
+}
+
+async fn tee_proxy_post<B, R>(
+    record: &InstanceRecord,
+    path: &str,
+    payload: &B,
+) -> Result<R, ApiError>
+where
+    B: Serialize + ?Sized,
+    R: DeserializeOwned,
+{
+    let (url, token) = tee_proxy_url_and_token(record, path)?;
+    let response = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(token)
+        .json(payload)
+        .send()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("tee proxy request failed for `{path}`: {e}")))?;
+    let status = response.status();
+    let body = response.text().await.map_err(|e| {
+        ApiError::BadRequest(format!("tee proxy response read failed for `{path}`: {e}"))
+    })?;
+    if !status.is_success() {
+        return Err(ApiError::BadRequest(format!(
+            "tee endpoint `{path}` returned {}: {}",
+            status.as_u16(),
+            trim_http_error_body(&body)
+        )));
+    }
+    serde_json::from_str(&body).map_err(|e| {
+        ApiError::BadRequest(format!("tee endpoint `{path}` returned invalid JSON: {e}"))
+    })
+}
+
+fn trim_http_error_body(body: &str) -> String {
+    let mut compact = body.trim().replace('\n', " ");
+    if compact.len() > 240 {
+        compact.truncate(240);
+        compact.push_str("...");
+    }
+    compact
 }
 
 async fn create_terminal_session(
@@ -1221,6 +1430,11 @@ mod tests {
         ClawVariant, ExecutionTarget, InstanceRecord, InstanceState, RuntimeBinding, UiAccess,
         UiAuthMode,
     };
+    use axum::Router as AxumRouter;
+    use axum::extract::State as AxumState;
+    use axum::response::IntoResponse;
+    use axum::routing::{get, post};
+    use sandbox_runtime::tee::TeeType;
     use std::sync::Mutex;
 
     #[derive(Default)]
@@ -1327,6 +1541,104 @@ mod tests {
             created_at: 10,
             updated_at: 10,
         }
+    }
+
+    #[derive(Clone)]
+    struct MockTeeState {
+        expected_bearer: String,
+    }
+
+    fn has_expected_bearer(headers: &HeaderMap, expected: &str) -> bool {
+        headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(extract_bearer_token)
+            .map(|v| v.trim() == expected)
+            .unwrap_or(false)
+    }
+
+    async fn mock_tee_public_key(
+        AxumState(state): AxumState<MockTeeState>,
+        headers: HeaderMap,
+    ) -> impl IntoResponse {
+        if !has_expected_bearer(&headers, &state.expected_bearer) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "unauthorized" })),
+            )
+                .into_response();
+        }
+        let payload = TeePublicKey {
+            algorithm: "x25519-hkdf-sha256".to_string(),
+            public_key_bytes: vec![1, 2, 3, 4],
+            attestation: AttestationReport {
+                tee_type: TeeType::Tdx,
+                evidence: vec![9, 9],
+                measurement: vec![7, 7],
+                timestamp: 1_700_000_000,
+            },
+        };
+        (StatusCode::OK, Json(payload)).into_response()
+    }
+
+    async fn mock_tee_attestation(
+        AxumState(state): AxumState<MockTeeState>,
+        headers: HeaderMap,
+    ) -> impl IntoResponse {
+        if !has_expected_bearer(&headers, &state.expected_bearer) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "unauthorized" })),
+            )
+                .into_response();
+        }
+        let payload = AttestationReport {
+            tee_type: TeeType::Tdx,
+            evidence: vec![0xAA, 0xBB],
+            measurement: vec![0x11, 0x22],
+            timestamp: 1_700_000_001,
+        };
+        (StatusCode::OK, Json(payload)).into_response()
+    }
+
+    async fn mock_tee_sealed_secrets(
+        AxumState(state): AxumState<MockTeeState>,
+        headers: HeaderMap,
+        Json(payload): Json<SealedSecret>,
+    ) -> impl IntoResponse {
+        if !has_expected_bearer(&headers, &state.expected_bearer) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "unauthorized" })),
+            )
+                .into_response();
+        }
+
+        let result = SealedSecretResult {
+            success: true,
+            secrets_count: usize::from(!payload.ciphertext.is_empty()),
+            error: None,
+        };
+        (StatusCode::OK, Json(result)).into_response()
+    }
+
+    async fn spawn_mock_tee_server(expected_bearer: &str) -> (String, tokio::task::JoinHandle<()>) {
+        let state = MockTeeState {
+            expected_bearer: expected_bearer.to_string(),
+        };
+        let app = AxumRouter::new()
+            .route("/tee/public-key", get(mock_tee_public_key))
+            .route("/tee/sealed-secrets", post(mock_tee_sealed_secrets))
+            .route("/tee/attestation", get(mock_tee_attestation))
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock tee listener");
+        let addr = listener.local_addr().expect("local addr");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{addr}"), handle)
     }
 
     fn bearer_headers(token: &str) -> HeaderMap {
@@ -1496,6 +1808,110 @@ mod tests {
                 assert!(message.contains("session is not authorized for this instance"));
             }
             other => panic!("expected forbidden error, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn tee_proxy_endpoints_roundtrip_for_scoped_owner() {
+        let (mock_ui_base, mock_handle) = spawn_mock_tee_server("instance-ui-token").await;
+        let mut instance = test_instance(
+            "inst-tee-proxy",
+            "0x0000000000000000000000000000000000000001",
+        );
+        instance.execution_target = ExecutionTarget::Tee;
+        instance.runtime.ui_local_url = Some(mock_ui_base);
+
+        let adapter = TestAdapter::with_instance(instance.clone());
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: Some("user-access-token".to_string()),
+            operator_api_token: Some("operator-token".to_string()),
+        });
+        let session = auth
+            .create_access_token_session(&instance, "user-access-token")
+            .expect("session");
+        let state = ApiState {
+            adapter,
+            auth,
+            sessions: Arc::new(LiveSessionStore::default()),
+        };
+
+        let pk = tee_public_key(
+            State(state.clone()),
+            bearer_headers(&session.token),
+            Path(instance.id.clone()),
+        )
+        .await
+        .expect("tee public key response");
+        assert_eq!(pk.0.instance_id, instance.id);
+        assert_eq!(pk.0.public_key.algorithm, "x25519-hkdf-sha256");
+        assert_eq!(pk.0.public_key.attestation.tee_type, TeeType::Tdx);
+
+        let sealed = tee_sealed_secrets(
+            State(state.clone()),
+            bearer_headers(&session.token),
+            Path(instance.id.clone()),
+            Json(InjectSealedSecretsRequest {
+                sealed_secret: SealedSecret {
+                    algorithm: "x25519-xsalsa20-poly1305".to_string(),
+                    ciphertext: vec![1, 2, 3],
+                    nonce: vec![4, 5, 6],
+                },
+            }),
+        )
+        .await
+        .expect("tee sealed secrets response");
+        assert_eq!(sealed.0.instance_id, instance.id);
+        assert!(sealed.0.success);
+        assert_eq!(sealed.0.secrets_count, 1);
+
+        let attestation = tee_attestation(
+            State(state),
+            bearer_headers(&session.token),
+            Path(instance.id.clone()),
+        )
+        .await
+        .expect("tee attestation response");
+        assert_eq!(attestation.0.instance_id, instance.id);
+        assert_eq!(attestation.0.attestation.tee_type, TeeType::Tdx);
+
+        mock_handle.abort();
+    }
+
+    #[tokio::test]
+    async fn tee_proxy_endpoints_reject_standard_instances() {
+        let instance = test_instance(
+            "inst-tee-reject",
+            "0x0000000000000000000000000000000000000001",
+        );
+        let adapter = TestAdapter::with_instance(instance.clone());
+        let auth = AuthService::new(AuthConfig {
+            challenge_ttl_secs: 60,
+            session_ttl_secs: 300,
+            access_token: Some("user-access-token".to_string()),
+            operator_api_token: Some("operator-token".to_string()),
+        });
+        let session = auth
+            .create_access_token_session(&instance, "user-access-token")
+            .expect("session");
+        let state = ApiState {
+            adapter,
+            auth,
+            sessions: Arc::new(LiveSessionStore::default()),
+        };
+
+        let result = tee_public_key(
+            State(state),
+            bearer_headers(&session.token),
+            Path(instance.id.clone()),
+        )
+        .await;
+        match result {
+            Err(ApiError::BadRequest(message)) => {
+                assert!(message.contains("not tee-targeted"));
+            }
+            other => panic!("expected bad request, got: {other:?}"),
         }
     }
 }
