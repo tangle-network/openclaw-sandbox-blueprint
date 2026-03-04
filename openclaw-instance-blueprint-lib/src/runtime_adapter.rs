@@ -1268,6 +1268,71 @@ mod tests {
             .expect("docker delete succeeds");
     }
 
+    #[test]
+    #[ignore = "requires Docker daemon and network image pull"]
+    fn docker_setup_command_executes_and_writes_output() {
+        unsafe {
+            std::env::set_var("OPENCLAW_VARIANT_OPENCLAW_UI_PORT", "80");
+            std::env::set_var(
+                "OPENCLAW_VARIANT_OPENCLAW_SETUP_COMMAND",
+                "echo setup-ok >/tmp/openclaw-setup-status.txt",
+            );
+        }
+
+        let adapter = DockerRuntimeAdapter {
+            images: DockerImages {
+                openclaw: "nginx:alpine".to_string(),
+                nanoclaw: "nginx:alpine".to_string(),
+                ironclaw: "nginx:alpine".to_string(),
+            },
+            auto_pull: true,
+            auto_trigger_setup: false,
+        };
+        let instance_id = format!("docker-setup-{}", uuid::Uuid::new_v4());
+        let now = chrono::Utc::now().timestamp();
+        let mut record = adapter
+            .create_instance(RuntimeCreateInput {
+                id: instance_id,
+                name: "docker setup".to_string(),
+                template_pack_id: "ops".to_string(),
+                claw_variant: ClawVariant::Openclaw,
+                config_json: "{}".to_string(),
+                owner: "0xabc".to_string(),
+                ui_access: UiAccess::default(),
+                execution_target: ExecutionTarget::Standard,
+                now,
+            })
+            .expect("docker create");
+
+        adapter
+            .on_start_instance(&mut record)
+            .expect("docker start succeeds");
+
+        let mut setup_env = BTreeMap::new();
+        setup_env.insert("OPENAI_API_KEY".to_string(), "sk-test".to_string());
+        adapter
+            .trigger_setup(&mut record, &setup_env)
+            .expect("setup trigger should succeed");
+        assert_eq!(record.runtime.setup_status.as_deref(), Some("running"));
+
+        let container_ref = DockerRuntimeAdapter::container_ref(&record).expect("container ref");
+        wait_for_container_file_contains(
+            &container_ref,
+            "/tmp/openclaw-setup-status.txt",
+            "setup-ok",
+        )
+        .expect("setup command output");
+
+        adapter
+            .on_delete_instance(&mut record)
+            .expect("docker delete succeeds");
+
+        unsafe {
+            std::env::remove_var("OPENCLAW_VARIANT_OPENCLAW_UI_PORT");
+            std::env::remove_var("OPENCLAW_VARIANT_OPENCLAW_SETUP_COMMAND");
+        }
+    }
+
     fn wait_for_http_ok(url: &str) -> Result<()> {
         for _ in 0..20 {
             let output = Command::new("curl")
@@ -1283,6 +1348,32 @@ mod tests {
 
         Err(InstanceError::Store(format!(
             "timed out waiting for HTTP UI at {url}"
+        )))
+    }
+
+    fn wait_for_container_file_contains(
+        container_ref: &str,
+        path: &str,
+        expected: &str,
+    ) -> Result<()> {
+        let read_command = format!("cat {path}");
+        for _ in 0..25 {
+            let output = Command::new("docker")
+                .args(["exec", container_ref, "sh", "-lc", &read_command])
+                .output()
+                .map_err(|e| InstanceError::Store(format!("failed to run docker exec: {e}")))?;
+
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if stdout.contains(expected) {
+                    return Ok(());
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+
+        Err(InstanceError::Store(format!(
+            "timed out waiting for `{expected}` in {path} for container {container_ref}"
         )))
     }
 }
