@@ -40,8 +40,9 @@ Library crate containing all business logic:
   and implementations (`LocalStateRuntimeAdapter`, `DockerRuntimeAdapter`).
 - **`query.rs`** — reusable read-only query helpers (instance/template views).
 - **`auth.rs`** — challenge/session auth service for operator API access control.
-- **`operator_api.rs`** — axum router and handlers for `/health`,
-  `/templates`, `/instances`, auth/session endpoints, and setup trigger endpoint.
+- **`operator_api.rs`** — axum router and handlers for `/` (built-in
+  control-plane UI), `/health`, `/templates`, `/instances`, auth/session
+  endpoints, and setup trigger endpoint.
 - **`state.rs`** — File-backed persistent store for `InstanceRecord` objects.
   Uses `once_cell::OnceCell` + `Mutex<BTreeMap>` with JSON persistence.
 - **`error.rs`** — Domain error type (`InstanceError`) with conversions to
@@ -88,6 +89,7 @@ All state mutations go through on-chain jobs. Each job:
 Read-only operations are **not** jobs. They are served via the operator
 HTTP API (axum):
 
+- `GET /` — static control-plane UI shell
 - `GET /instances` — list instances (scoped by bearer claims)
 - `GET /instances/{id}` — instance detail
 - `GET /instances/{id}/access` — fetch per-instance UI bearer token (scoped session only)

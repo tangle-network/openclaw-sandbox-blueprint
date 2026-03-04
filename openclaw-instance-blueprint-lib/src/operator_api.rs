@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -129,6 +129,10 @@ struct SessionResponse {
     owner: String,
 }
 
+const CONTROL_PLANE_INDEX_HTML: &str = include_str!("../../control-plane-ui/index.html");
+const CONTROL_PLANE_APP_JS: &str = include_str!("../../control-plane-ui/app.js");
+const CONTROL_PLANE_STYLES_CSS: &str = include_str!("../../control-plane-ui/styles.css");
+
 pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch::Receiver<()>) {
     let state = ApiState {
         adapter: instance_runtime_adapter(),
@@ -136,6 +140,9 @@ pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch
     };
 
     let app = Router::new()
+        .route("/", get(control_plane_index))
+        .route("/app.js", get(control_plane_app_js))
+        .route("/styles.css", get(control_plane_styles_css))
         .route("/health", get(health))
         .route("/templates", get(templates))
         .route("/instances", get(instances))
@@ -160,6 +167,30 @@ pub async fn run_operator_api(listener: tokio::net::TcpListener, shutdown: watch
 
 async fn health() -> Json<HealthResponse> {
     Json(HealthResponse { status: "ok" })
+}
+
+async fn control_plane_index() -> Response {
+    static_asset("text/html; charset=utf-8", CONTROL_PLANE_INDEX_HTML)
+}
+
+async fn control_plane_app_js() -> Response {
+    static_asset(
+        "application/javascript; charset=utf-8",
+        CONTROL_PLANE_APP_JS,
+    )
+}
+
+async fn control_plane_styles_css() -> Response {
+    static_asset("text/css; charset=utf-8", CONTROL_PLANE_STYLES_CSS)
+}
+
+fn static_asset(content_type: &'static str, body: &'static str) -> Response {
+    (
+        [(header::CONTENT_TYPE, content_type)],
+        [(header::CACHE_CONTROL, "no-store")],
+        body,
+    )
+        .into_response()
 }
 
 async fn templates() -> Result<Json<TemplatesResponse>, ApiError> {
