@@ -356,6 +356,7 @@ function InstanceRuntimePanel() {
   } | null>(null);
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [launchFeedback, setLaunchFeedback] = useState<NoticeState | null>(null);
+  const [workspaceFeedback, setWorkspaceFeedback] = useState<NoticeState | null>(null);
   const [templates, setTemplates] = useState<TemplatePack[]>([]);
   const [instances, setInstances] = useState<InstanceView[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -382,6 +383,7 @@ function InstanceRuntimePanel() {
   const [teeCiphertext, setTeeCiphertext] = useState('');
   const [teeNonce, setTeeNonce] = useState('');
   const [teeOutput, setTeeOutput] = useState('');
+  const [isSetupStarting, setIsSetupStarting] = useState(false);
 
   const [quickChatPrompt, setQuickChatPrompt] = useState('hello');
   const [provisionName, setProvisionName] = useState('openclaw-' + randomSuffix(7));
@@ -429,6 +431,11 @@ function InstanceRuntimePanel() {
   const setLaunchNotice = useCallback((tone: NoticeTone, text: string) => {
     const next = { tone, text };
     setLaunchFeedback(next);
+    setNotice(next);
+  }, []);
+  const setWorkspaceNotice = useCallback((tone: NoticeTone, text: string) => {
+    const next = { tone, text };
+    setWorkspaceFeedback(next);
     setNotice(next);
   }, []);
 
@@ -1206,6 +1213,7 @@ function InstanceRuntimePanel() {
           ? 'Owner wallet session created.'
           : 'Access-token session created.';
       setOwnerSessionFeedback({ tone: 'success', text });
+      setWorkspaceFeedback(null);
       setNotice({
         tone: 'success',
         text,
@@ -1401,41 +1409,41 @@ function InstanceRuntimePanel() {
   const onOneClickSetup = useCallback(async () => {
     if (!selectedInstance) return;
     if (!selectedInstance.runtime.setupCommand && !selectedInstance.runtime.setupUrl) {
-      setNotice({
-        tone: 'error',
-        text: 'Setup is not available for this runtime backend yet.',
-      });
+      setWorkspaceNotice('error', 'Setup is not available for this runtime backend yet.');
       return;
     }
+    setIsSetupStarting(true);
     try {
       const scoped = await ensureScopedSession(selectedInstance);
       const updated = await startSetup(scoped, selectedInstance.id, {});
       setInstances((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      setNotice({ tone: 'success', text: `Setup started for ${selectedInstance.name}.` });
+      setWorkspaceNotice('success', `Setup started for ${selectedInstance.name}.`);
     } catch (error) {
-      setNotice({ tone: 'error', text: `Setup failed: ${(error as Error).message}` });
+      setWorkspaceNotice('error', `Setup failed: ${(error as Error).message}`);
+    } finally {
+      setIsSetupStarting(false);
     }
-  }, [ensureScopedSession, selectedInstance]);
+  }, [ensureScopedSession, selectedInstance, setWorkspaceNotice]);
 
   const onSetupWithEnv = useCallback(async () => {
     if (!selectedInstance) return;
     if (!selectedInstance.runtime.setupCommand && !selectedInstance.runtime.setupUrl) {
-      setNotice({
-        tone: 'error',
-        text: 'Setup is not available for this runtime backend yet.',
-      });
+      setWorkspaceNotice('error', 'Setup is not available for this runtime backend yet.');
       return;
     }
+    setIsSetupStarting(true);
     try {
       const env = parseEnvText(setupEnvText);
       const scoped = await ensureScopedSession(selectedInstance);
       const updated = await startSetup(scoped, selectedInstance.id, env);
       setInstances((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      setNotice({ tone: 'success', text: `Setup started with ${Object.keys(env).length} env override(s).` });
+      setWorkspaceNotice('success', `Setup started with ${Object.keys(env).length} env override(s).`);
     } catch (error) {
-      setNotice({ tone: 'error', text: `Advanced setup failed: ${(error as Error).message}` });
+      setWorkspaceNotice('error', `Advanced setup failed: ${(error as Error).message}`);
+    } finally {
+      setIsSetupStarting(false);
     }
-  }, [ensureScopedSession, selectedInstance, setupEnvText]);
+  }, [ensureScopedSession, selectedInstance, setWorkspaceNotice, setupEnvText]);
 
   const onFetchInstanceAccess = useCallback(async () => {
     if (!selectedInstance) return;
@@ -2392,9 +2400,9 @@ function InstanceRuntimePanel() {
                   <Button
                     size="sm"
                     onClick={() => void onOneClickSetup()}
-                    disabled={selectedInstance.status !== 'running' || !selectedInstanceSetupCapable}
+                    disabled={isSetupStarting || selectedInstance.status !== 'running' || !selectedInstanceSetupCapable}
                   >
-                    Start Setup
+                    {isSetupStarting ? 'Starting Setup…' : 'Start Setup'}
                   </Button>
                   <Button
                     size="sm"
@@ -2405,6 +2413,25 @@ function InstanceRuntimePanel() {
                     Fetch Access
                   </Button>
                 </div>
+                {workspaceFeedback ? (
+                  <div
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-xs',
+                      workspaceFeedback.tone === 'error'
+                        ? 'border-red-400/45 bg-red-500/10 text-red-100'
+                        : workspaceFeedback.tone === 'success'
+                          ? 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'
+                          : 'border-cyan-300/35 bg-cyan-500/10 text-cyan-100',
+                    )}
+                  >
+                    {workspaceFeedback.text}
+                  </div>
+                ) : null}
+                {!hasScopedSession ? (
+                  <p className="text-xs text-claw-elements-textTertiary">
+                    Setup actions auto-create a scoped owner session. If wallet signing is blocked, refresh owner session first.
+                  </p>
+                ) : null}
 
                 <div className="rounded-lg border border-claw-elements-dividerColor px-3 py-3 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2540,9 +2567,9 @@ function InstanceRuntimePanel() {
                     <Button
                       variant="secondary"
                       onClick={() => void onSetupWithEnv()}
-                      disabled={selectedInstance.status !== 'running' || !selectedInstanceSetupCapable}
+                      disabled={isSetupStarting || selectedInstance.status !== 'running' || !selectedInstanceSetupCapable}
                     >
-                      Start setup with env
+                      {isSetupStarting ? 'Starting setup…' : 'Start setup with env'}
                     </Button>
                     {!selectedInstanceSetupCapable ? (
                       <p className="text-xs claw-text-warning">
