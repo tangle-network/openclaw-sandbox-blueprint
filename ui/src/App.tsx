@@ -371,6 +371,8 @@ function InstanceRuntimePanel() {
   const [pendingSessionDelete, setPendingSessionDelete] = useState<PendingSessionDelete | null>(null);
   const sessionDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastNoticeRef = useRef<{ tone: NoticeTone; text: string } | null>(null);
+  const txErrorRef = useRef<string | null>(null);
+  const txStatusRef = useRef<string>('idle');
   const walletMenuRef = useRef<HTMLDivElement | null>(null);
   const walletMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -439,6 +441,14 @@ function InstanceRuntimePanel() {
     setWorkspaceFeedback(next);
     setNotice(next);
   }, []);
+
+  useEffect(() => {
+    txErrorRef.current = txError;
+  }, [txError]);
+
+  useEffect(() => {
+    txStatusRef.current = txStatus;
+  }, [txStatus]);
 
   useEffect(() => {
     if (txStatus === 'pending') {
@@ -770,6 +780,15 @@ function InstanceRuntimePanel() {
       return false;
     }
   }, [forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
+
+  const autoWalletSyncKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (!isWalletConnected || !connectedWallet) return;
+    const key = `${connectedWallet.toLowerCase()}:${activeChainId ?? 'na'}:${TARGET_RPC_URL}`;
+    if (autoWalletSyncKeyRef.current === key) return;
+    autoWalletSyncKeyRef.current = key;
+    void ensureTargetChain();
+  }, [activeChainId, connectedWallet, ensureTargetChain, isWalletConnected]);
 
   const copyWalletAddress = useCallback(async () => {
     if (!connectedWallet) return;
@@ -1370,7 +1389,14 @@ function InstanceRuntimePanel() {
         label: `Create ${provisionName.trim()}`,
       });
       if (!hash) {
-        setLaunchNotice('error', `Create transaction was not submitted${txError ? `: ${txError}` : '.'}`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const latestError = txErrorRef.current;
+        const latestStatus = txStatusRef.current;
+        const fallback =
+          latestStatus === 'failed'
+            ? 'wallet rejected the transaction or provider returned an error'
+            : 'wallet did not submit the transaction';
+        setLaunchNotice('error', `Create transaction was not submitted: ${latestError ?? fallback}.`);
         return;
       }
       setLaunchNotice('info', `Create job submitted (${hash}). Waiting for operator execution.`);
