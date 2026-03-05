@@ -643,19 +643,13 @@ function InstanceRuntimePanel() {
       return;
     }
 
-    const hasKeplrProvider =
-      typeof window !== 'undefined' &&
-      Boolean(
-        (window as typeof window & { keplr?: unknown; ethereum?: { isKeplr?: boolean } }).keplr ||
-          (window as typeof window & { ethereum?: { isKeplr?: boolean } }).ethereum?.isKeplr,
-      );
     const orderedConnectors = [...connectors].sort((left, right) => {
       const rank = (connector: (typeof connectors)[number]) => {
         const idText = `${connector.id} ${connector.name}`.toLowerCase();
         let score = 0;
         if (connector.type === 'injected') score -= 20;
-        if (hasKeplrProvider && idText.includes('keplr')) score -= 10;
-        if (!hasKeplrProvider && idText.includes('metamask')) score -= 8;
+        if (idText.includes('metamask')) score -= 10;
+        if (idText.includes('keplr')) score -= 4;
         if (idText.includes('walletconnect')) score += 5;
         return score;
       };

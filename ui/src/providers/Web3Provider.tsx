@@ -127,17 +127,17 @@ const connectors = walletConnectProjectId
   ? [
       injected({
         target: {
-          id: 'keplr',
-          name: 'Keplr',
-          provider: () => resolveKeplrProvider(),
+          id: 'metaMask',
+          name: 'MetaMask',
+          provider: () => resolveMetaMaskProvider(),
         },
         shimDisconnect: true,
       }),
       injected({
         target: {
-          id: 'metaMask',
-          name: 'MetaMask',
-          provider: () => resolveMetaMaskProvider(),
+          id: 'keplr',
+          name: 'Keplr',
+          provider: () => resolveKeplrProvider(),
         },
         shimDisconnect: true,
       }),
@@ -152,17 +152,17 @@ const connectors = walletConnectProjectId
   : [
       injected({
         target: {
-          id: 'keplr',
-          name: 'Keplr',
-          provider: () => resolveKeplrProvider(),
+          id: 'metaMask',
+          name: 'MetaMask',
+          provider: () => resolveMetaMaskProvider(),
         },
         shimDisconnect: true,
       }),
       injected({
         target: {
-          id: 'metaMask',
-          name: 'MetaMask',
-          provider: () => resolveMetaMaskProvider(),
+          id: 'keplr',
+          name: 'Keplr',
+          provider: () => resolveKeplrProvider(),
         },
         shimDisconnect: true,
       }),
@@ -187,9 +187,12 @@ function FastReconnect({ children }: { children: ReactNode }) {
   const { reconnect } = useReconnect();
 
   useEffect(() => {
-    const injectedConnector = config.connectors.find((connector) => connector.type === 'injected');
-    if (injectedConnector) {
-      reconnect({ connectors: [injectedConnector] });
+    const connectors = config.connectors.filter((connector) => connector.type === 'injected');
+    if (connectors.length > 0) {
+      const preferred =
+        connectors.find((connector) => `${connector.id} ${connector.name}`.toLowerCase().includes('metamask')) ??
+        connectors[0];
+      reconnect({ connectors: [preferred] });
     }
   }, [reconnect]);
 
