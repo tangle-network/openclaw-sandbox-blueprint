@@ -693,20 +693,65 @@ function InstanceRuntimePanel() {
 
         const ethereum = browserEthereum();
         if (ethereum) {
-          const walletCodeRaw = await ethereum
-            .request({
-              method: 'eth_getCode',
-              params: [contractAddress, 'latest'],
-            })
-            .catch(() => null);
-          const walletCode = typeof walletCodeRaw === 'string' ? walletCodeRaw : null;
+          const readWalletCode = async (): Promise<string | null> => {
+            const raw = await ethereum
+              .request({
+                method: 'eth_getCode',
+                params: [contractAddress, 'latest'],
+              })
+              .catch(() => null);
+            return typeof raw === 'string' ? raw : null;
+          };
+
+          let walletCode = await readWalletCode();
           if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
-            setLaunchNotice(
-              'error',
-              `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
-                `In wallet network settings, set RPC URL to ${TARGET_RPC_URL}, then reconnect and retry.`,
-            );
-            return false;
+            // Self-heal stale chain RPC metadata (common when HTTPS tunnel rotates between runs).
+            const addParams = {
+              chainId: `0x${TARGET_CHAIN_ID.toString(16)}`,
+              chainName: TARGET_CHAIN_NAME,
+              nativeCurrency: {
+                name: TARGET_CURRENCY_SYMBOL,
+                symbol: TARGET_CURRENCY_SYMBOL,
+                decimals: 18,
+              },
+              rpcUrls: [TARGET_RPC_URL],
+              ...(TARGET_EXPLORER_URL ? { blockExplorerUrls: [TARGET_EXPLORER_URL] } : {}),
+            };
+            try {
+              await withTimeout(
+                ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [addParams],
+                }),
+                12_000,
+                'wallet_addEthereumChain',
+              );
+              await withTimeout(
+                ethereum.request({
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: addParams.chainId }],
+                }),
+                12_000,
+                'wallet_switchEthereumChain',
+              );
+              walletCode = await readWalletCode();
+            } catch (healError) {
+              setLaunchNotice(
+                'error',
+                `Wallet RPC does not match app RPC and auto-fix failed: ${readErrorMessage(healError)}. ` +
+                  `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`,
+              );
+              return false;
+            }
+
+            if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
+              setLaunchNotice(
+                'error',
+                `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
+                  `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`,
+              );
+              return false;
+            }
           }
         }
       }
