@@ -79,6 +79,7 @@ const TARGET_RPC_URL = import.meta.env.VITE_RPC_URL ?? FALLBACK_TARGET_RPC_URL;
 const TARGET_CHAIN_NAME = import.meta.env.VITE_CHAIN_NAME ?? 'Tangle Local';
 const TARGET_CURRENCY_SYMBOL = import.meta.env.VITE_CHAIN_CURRENCY_SYMBOL ?? 'ETH';
 const TARGET_EXPLORER_URL = import.meta.env.VITE_CHAIN_EXPLORER_URL ?? '';
+const STRICT_WALLET_RPC_MATCH = import.meta.env.VITE_STRICT_WALLET_RPC_MATCH === '1';
 
 type BrowserEthereum = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -736,21 +737,25 @@ function InstanceRuntimePanel() {
               );
               walletCode = await readWalletCode();
             } catch (healError) {
-              setLaunchNotice(
-                'error',
+              const text =
                 `Wallet RPC does not match app RPC and auto-fix failed: ${readErrorMessage(healError)}. ` +
-                  `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`,
-              );
-              return false;
+                `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`;
+              if (STRICT_WALLET_RPC_MATCH) {
+                setLaunchNotice('error', text);
+                return false;
+              }
+              setLaunchNotice('info', `${text} Continuing with current wallet RPC for this session.`);
             }
 
             if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
-              setLaunchNotice(
-                'error',
+              const text =
                 `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
-                  `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`,
-              );
-              return false;
+                `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`;
+              if (STRICT_WALLET_RPC_MATCH) {
+                setLaunchNotice('error', text);
+                return false;
+              }
+              setLaunchNotice('info', `${text} Continuing with current wallet RPC for this session.`);
             }
           }
         }
