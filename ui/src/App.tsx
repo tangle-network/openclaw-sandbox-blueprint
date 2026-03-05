@@ -275,6 +275,26 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
+function readErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    const maybe = error as { shortMessage?: unknown; message?: unknown; details?: unknown };
+    if (typeof maybe.shortMessage === 'string' && maybe.shortMessage.trim()) return maybe.shortMessage;
+    if (typeof maybe.message === 'string' && maybe.message.trim()) return maybe.message;
+    if (typeof maybe.details === 'string' && maybe.details.trim()) return maybe.details;
+  }
+  return String(error ?? 'unknown error');
+}
+
+function readErrorCode(error: unknown): number | null {
+  if (typeof error === 'object' && error !== null) {
+    const maybe = error as { code?: unknown; cause?: { code?: unknown } };
+    if (typeof maybe.code === 'number') return maybe.code;
+    if (typeof maybe.cause?.code === 'number') return maybe.cause.code;
+  }
+  return null;
+}
+
 async function signWalletMessage(walletAddress: string, message: string): Promise<string> {
   const ethereum = browserEthereum();
   if (!ethereum) {
@@ -476,6 +496,7 @@ function InstanceRuntimePanel() {
   const forceWalletToTargetChain = useCallback(async () => {
     const hexChainId = `0x${TARGET_CHAIN_ID.toString(16)}`;
     const ethereum = browserEthereum();
+    const isHttpRpc = TARGET_RPC_URL.startsWith('http://');
     const addParams = {
       chainId: hexChainId,
       chainName: TARGET_CHAIN_NAME,
@@ -512,7 +533,18 @@ function InstanceRuntimePanel() {
       );
     };
 
-    // First try Wagmi switch (works when wallet chain metadata is already healthy).
+    const currentHex = ethereum
+      ? await withTimeout(ethereum.request({ method: 'eth_chainId' }).catch(() => null), 8_000, 'eth_chainId')
+      : null;
+    if (typeof currentHex === 'string') {
+      const parsed = Number.parseInt(currentHex, 16);
+      setProviderChainId(Number.isFinite(parsed) ? parsed : null);
+      if (currentHex === hexChainId) {
+        return;
+      }
+    }
+
+    // Try Wagmi first (works when wallet chain metadata is already healthy).
     try {
       await withTimeout(switchChainAsync({ chainId: TARGET_CHAIN_ID }), 12_000, 'switchChainAsync');
     } catch {
@@ -528,16 +560,35 @@ function InstanceRuntimePanel() {
       return;
     }
 
-    const currentHex = await withTimeout(
+    const afterWagmiHex = await withTimeout(
       ethereum.request({ method: 'eth_chainId' }).catch(() => null),
       8_000,
       'eth_chainId',
     );
-    if (currentHex !== hexChainId) {
+    if (afterWagmiHex !== hexChainId) {
       try {
         await switchThroughWallet();
-      } catch {
-        await addThroughWallet();
+      } catch (switchError) {
+        const switchCode = readErrorCode(switchError);
+        const switchMessage = readErrorMessage(switchError);
+        const looksUnknownChain =
+          switchCode === 4902 || switchMessage.toLowerCase().includes('unrecognized chain');
+        if (!looksUnknownChain) {
+          throw new Error(`Wallet refused chain switch: ${switchMessage}`);
+        }
+        try {
+          await addThroughWallet();
+        } catch (addError) {
+          const addMessage = readErrorMessage(addError);
+          const addMessageLower = addMessage.toLowerCase();
+          if (isHttpRpc && addMessageLower.includes('https') && addMessageLower.includes('rpcurl')) {
+            throw new Error(
+              `Keplr requires an HTTPS RPC URL to add chain ${TARGET_CHAIN_ID}, but current RPC is ${TARGET_RPC_URL}. ` +
+                `Use MetaMask for local HTTP RPC, or expose this RPC via HTTPS and set VITE_RPC_URL to that endpoint.`,
+            );
+          }
+          throw new Error(`Wallet could not add chain ${TARGET_CHAIN_ID}: ${addMessage}`);
+        }
         await switchThroughWallet();
       }
     }
