@@ -1724,6 +1724,7 @@ function InstanceRuntimePanel() {
     if (!canProvision) return 'Instance name and template are required.';
     if (DEMO_MODE) return null;
     if (!isWalletConnected) return 'Connect wallet before submitting.';
+    if (isWrongChain) return `Wallet is on chain ${activeChainId ?? 'unknown'}. Switch to ${TARGET_CHAIN_ID}.`;
     if (selectedProvisionServiceId === null) return `Missing ${provisionExecutionTarget} service ID.`;
     if (chainSwitchBusy) return 'Waiting for wallet chain switch confirmation.';
     if (txStatus === 'signing') return 'Waiting for wallet signature.';
@@ -1734,6 +1735,8 @@ function InstanceRuntimePanel() {
     canProvision,
     DEMO_MODE,
     isWalletConnected,
+    isWrongChain,
+    activeChainId,
     selectedProvisionServiceId,
     provisionExecutionTarget,
     chainSwitchBusy,
@@ -2307,6 +2310,21 @@ function InstanceRuntimePanel() {
                             <p className="text-sm truncate">{provisionSubdomain}</p>
                           </div>
                         </div>
+                        {!DEMO_MODE && isWalletConnected && isWrongChain ? (
+                          <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2">
+                            <p className="text-xs claw-text-warning">
+                              Wallet is on chain {activeChainId ?? 'unknown'}. Switch to {TARGET_CHAIN_ID} before submit.
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void ensureTargetChain({ attemptSwitch: true })}
+                              disabled={chainSwitchBusy}
+                            >
+                              {chainSwitchBusy ? 'Switching…' : `Switch to ${TARGET_CHAIN_ID}`}
+                            </Button>
+                          </div>
+                        ) : null}
 
                         <details className="rounded-lg border border-claw-elements-dividerColor px-3 py-2">
                           <summary className="cursor-pointer text-sm text-claw-elements-textSecondary">Advanced Routing</summary>
