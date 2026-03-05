@@ -101,9 +101,46 @@ const tangleMainnet = defineChain({
 
 const walletChains = [tangleLocal, tangleTestnet, tangleMainnet, mainnet] as const;
 
+function readInjectedProviders(): any[] {
+  if (typeof window === 'undefined') return [];
+  const ethereum = (window as typeof window & { ethereum?: any }).ethereum;
+  if (!ethereum) return [];
+  if (Array.isArray(ethereum.providers) && ethereum.providers.length > 0) {
+    return ethereum.providers.filter((provider: any): provider is any => Boolean(provider));
+  }
+  return [ethereum];
+}
+
+function resolveKeplrProvider(_window?: Window): any | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const fromWindowKeplr = (window as typeof window & { keplr?: { ethereum?: any } }).keplr?.ethereum;
+  if (fromWindowKeplr?.request) return fromWindowKeplr;
+  return readInjectedProviders().find((provider) => Boolean(provider.isKeplr));
+}
+
+function resolveMetaMaskProvider(_window?: Window): any | undefined {
+  return readInjectedProviders().find((provider) => Boolean(provider.isMetaMask));
+}
+
 const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
 const connectors = walletConnectProjectId
   ? [
+      injected({
+        target: {
+          id: 'keplr',
+          name: 'Keplr',
+          provider: () => resolveKeplrProvider(),
+        },
+        shimDisconnect: true,
+      }),
+      injected({
+        target: {
+          id: 'metaMask',
+          name: 'MetaMask',
+          provider: () => resolveMetaMaskProvider(),
+        },
+        shimDisconnect: true,
+      }),
       injected({
         shimDisconnect: true,
       }),
@@ -113,6 +150,22 @@ const connectors = walletConnectProjectId
       }),
     ]
   : [
+      injected({
+        target: {
+          id: 'keplr',
+          name: 'Keplr',
+          provider: () => resolveKeplrProvider(),
+        },
+        shimDisconnect: true,
+      }),
+      injected({
+        target: {
+          id: 'metaMask',
+          name: 'MetaMask',
+          provider: () => resolveMetaMaskProvider(),
+        },
+        shimDisconnect: true,
+      }),
       injected({
         shimDisconnect: true,
       }),

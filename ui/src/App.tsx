@@ -394,7 +394,9 @@ function InstanceRuntimePanel() {
   const [walletBalanceRpcHex, setWalletBalanceRpcHex] = useState<string | null>(null);
   const [walletBalanceTargetRpcHex, setWalletBalanceTargetRpcHex] = useState<string | null>(null);
   const [isWalletBalanceRpcLoading, setIsWalletBalanceRpcLoading] = useState(false);
-  const isWrongChain = isWalletConnected && chainId !== TARGET_CHAIN_ID;
+  const [providerChainId, setProviderChainId] = useState<number | null>(null);
+  const activeChainId = chainId ?? providerChainId ?? undefined;
+  const isWrongChain = isWalletConnected && activeChainId !== TARGET_CHAIN_ID;
   const {
     submitJob,
     reset: resetLifecycleTx,
@@ -429,6 +431,47 @@ function InstanceRuntimePanel() {
       setSwitchRequestSinceMs(null);
     }
   }, [isSwitchingChain, switchRequestSinceMs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const refreshProviderChainId = async () => {
+      if (!isWalletConnected) {
+        if (!cancelled) setProviderChainId(null);
+        return;
+      }
+      const ethereum = browserEthereum();
+      if (!ethereum) {
+        if (!cancelled) setProviderChainId(null);
+        return;
+      }
+      try {
+        const value = await withTimeout(
+          ethereum.request({ method: 'eth_chainId' }).catch(() => null),
+          6_000,
+          'eth_chainId',
+        );
+        if (!cancelled && typeof value === 'string') {
+          const parsed = Number.parseInt(value, 16);
+          setProviderChainId(Number.isFinite(parsed) ? parsed : null);
+        }
+      } catch {
+        if (!cancelled) setProviderChainId(null);
+      }
+    };
+
+    void refreshProviderChainId();
+    if (isWalletConnected) {
+      timer = setInterval(() => {
+        void refreshProviderChainId();
+      }, 7_500);
+    }
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [isWalletConnected]);
 
   const forceWalletToTargetChain = useCallback(async () => {
     const hexChainId = `0x${TARGET_CHAIN_ID.toString(16)}`;
@@ -477,7 +520,7 @@ function InstanceRuntimePanel() {
     }
 
     if (!ethereum) {
-      if (chainId !== TARGET_CHAIN_ID) {
+      if (activeChainId !== TARGET_CHAIN_ID) {
         throw new Error(
           `Wallet provider unavailable for switching. Switch manually to chain ${TARGET_CHAIN_ID} and retry.`,
         );
@@ -504,6 +547,10 @@ function InstanceRuntimePanel() {
       8_000,
       'eth_chainId',
     );
+    if (typeof finalChainHex === 'string') {
+      const parsed = Number.parseInt(finalChainHex, 16);
+      setProviderChainId(Number.isFinite(parsed) ? parsed : null);
+    }
     if (finalChainHex !== hexChainId) {
       throw new Error(
         `Unable to switch wallet to chain ${TARGET_CHAIN_ID}. Open MetaMask, select chain ${TARGET_CHAIN_ID}, then retry.`,
@@ -518,7 +565,7 @@ function InstanceRuntimePanel() {
       await switchThroughWallet();
       await withTimeout(ethereum.request({ method: 'eth_blockNumber' }), 8_000, 'eth_blockNumber');
     }
-  }, [chainId, switchChainAsync]);
+  }, [activeChainId, switchChainAsync]);
 
   const connectWallet = useCallback(async (requestedConnectorId?: string) => {
     if (isWalletConnected) return;
@@ -527,11 +574,23 @@ function InstanceRuntimePanel() {
       return;
     }
 
+    const hasKeplrProvider =
+      typeof window !== 'undefined' &&
+      Boolean(
+        (window as typeof window & { keplr?: unknown; ethereum?: { isKeplr?: boolean } }).keplr ||
+          (window as typeof window & { ethereum?: { isKeplr?: boolean } }).ethereum?.isKeplr,
+      );
     const orderedConnectors = [...connectors].sort((left, right) => {
-      if (left.type === right.type) return 0;
-      if (left.type === 'injected') return -1;
-      if (right.type === 'injected') return 1;
-      return 0;
+      const rank = (connector: (typeof connectors)[number]) => {
+        const idText = `${connector.id} ${connector.name}`.toLowerCase();
+        let score = 0;
+        if (connector.type === 'injected') score -= 20;
+        if (hasKeplrProvider && idText.includes('keplr')) score -= 10;
+        if (!hasKeplrProvider && idText.includes('metamask')) score -= 8;
+        if (idText.includes('walletconnect')) score += 5;
+        return score;
+      };
+      return rank(left) - rank(right);
     });
     const candidates = requestedConnectorId
       ? orderedConnectors.filter((connector) => connector.id === requestedConnectorId)
@@ -759,7 +818,7 @@ function InstanceRuntimePanel() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [connectedWallet, isWalletConnected, walletBalance, chainId]);
+  }, [activeChainId, connectedWallet, isWalletConnected, walletBalance]);
 
   const selectedInstance = useMemo(
     () => instances.find((instance) => instance.id === selectedId) ?? null,
@@ -1490,11 +1549,11 @@ function InstanceRuntimePanel() {
         ? 'Loading…'
         : 'n/a';
   const chainLabel =
-    chainId === undefined
+    activeChainId === undefined
       ? 'n/a'
-      : chainId === TARGET_CHAIN_ID
-        ? `${TARGET_CHAIN_NAME} (${chainId})`
-      : `Chain ${chainId}`;
+      : activeChainId === TARGET_CHAIN_ID
+        ? `${TARGET_CHAIN_NAME} (${activeChainId})`
+      : `Chain ${activeChainId}`;
   const createSubmitDisabledReason = useMemo(() => {
     if (isProvisioning) return 'Provision request already in progress.';
     if (!canProvision) return 'Instance name and template are required.';
@@ -1957,7 +2016,7 @@ function InstanceRuntimePanel() {
                               <div>
                                 <p className="text-sm">Wallet Signature Access</p>
                                 <p className="text-xs text-claw-elements-textTertiary">
-                                  {chainId ? `${walletLabel} · ${chainLabel}` : 'Connect wallet to sign create job.'}
+                                  {activeChainId ? `${walletLabel} · ${chainLabel}` : 'Connect wallet to sign create job.'}
                                 </p>
                               </div>
                             </div>
@@ -2054,7 +2113,7 @@ function InstanceRuntimePanel() {
                                   : isWalletConnected && !isWrongChain
                                     ? 'Ready'
                                     : isWalletConnected
-                                      ? `Wrong chain (${chainId})`
+                                      ? `Wrong chain (${activeChainId ?? 'n/a'})`
                                       : 'Missing'}
                               </p>
                             </div>
