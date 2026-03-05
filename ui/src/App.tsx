@@ -117,6 +117,7 @@ const CHAT_BRANDING: AgentBranding = {
 };
 
 type NoticeTone = 'success' | 'error' | 'info';
+type NoticeState = { tone: NoticeTone; text: string };
 type ClawVariant = 'openclaw' | 'nanoclaw' | 'ironclaw';
 type SurfaceTab = 'launch' | 'instances' | 'workspace';
 type WizardStep = 1 | 2 | 3;
@@ -258,6 +259,22 @@ function parseRpcHexToBigint(value: unknown): bigint | null {
   }
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out.`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 async function signWalletMessage(walletAddress: string, message: string): Promise<string> {
   const ethereum = browserEthereum();
   if (!ethereum) {
@@ -317,7 +334,8 @@ function InstanceRuntimePanel() {
     tone: NoticeTone;
     text: string;
   } | null>(null);
-  const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null);
+  const [notice, setNotice] = useState<NoticeState | null>(null);
+  const [launchFeedback, setLaunchFeedback] = useState<NoticeState | null>(null);
   const [templates, setTemplates] = useState<TemplatePack[]>([]);
   const [instances, setInstances] = useState<InstanceView[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -379,10 +397,39 @@ function InstanceRuntimePanel() {
   const isWrongChain = isWalletConnected && chainId !== TARGET_CHAIN_ID;
   const {
     submitJob,
+    reset: resetLifecycleTx,
     status: txStatus,
     error: txError,
     txHash,
   } = useSubmitJob();
+  const [pendingTxSinceMs, setPendingTxSinceMs] = useState<number | null>(null);
+  const [switchRequestSinceMs, setSwitchRequestSinceMs] = useState<number | null>(null);
+  const setLaunchNotice = useCallback((tone: NoticeTone, text: string) => {
+    const next = { tone, text };
+    setLaunchFeedback(next);
+    setNotice(next);
+  }, []);
+
+  useEffect(() => {
+    if (txStatus === 'pending') {
+      setPendingTxSinceMs((current) => current ?? Date.now());
+      return;
+    }
+    if (pendingTxSinceMs !== null) {
+      setPendingTxSinceMs(null);
+    }
+  }, [pendingTxSinceMs, txStatus]);
+
+  useEffect(() => {
+    if (isSwitchingChain) {
+      setSwitchRequestSinceMs((current) => current ?? Date.now());
+      return;
+    }
+    if (switchRequestSinceMs !== null) {
+      setSwitchRequestSinceMs(null);
+    }
+  }, [isSwitchingChain, switchRequestSinceMs]);
+
   const forceWalletToTargetChain = useCallback(async () => {
     const hexChainId = `0x${TARGET_CHAIN_ID.toString(16)}`;
     const ethereum = browserEthereum();
@@ -400,30 +447,49 @@ function InstanceRuntimePanel() {
 
     const switchThroughWallet = async () => {
       if (!ethereum) return;
-      await ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: hexChainId }],
-      });
+      await withTimeout(
+        ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: hexChainId }],
+        }),
+        12_000,
+        'wallet_switchEthereumChain',
+      );
     };
 
     const addThroughWallet = async () => {
       if (!ethereum) return;
-      await ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [addParams],
-      });
+      await withTimeout(
+        ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [addParams],
+        }),
+        12_000,
+        'wallet_addEthereumChain',
+      );
     };
 
     // First try Wagmi switch (works when wallet chain metadata is already healthy).
     try {
-      await switchChainAsync({ chainId: TARGET_CHAIN_ID });
+      await withTimeout(switchChainAsync({ chainId: TARGET_CHAIN_ID }), 12_000, 'switchChainAsync');
     } catch {
       // Fall back to direct wallet RPC path below.
     }
 
-    if (!ethereum) return;
+    if (!ethereum) {
+      if (chainId !== TARGET_CHAIN_ID) {
+        throw new Error(
+          `Wallet provider unavailable for switching. Switch manually to chain ${TARGET_CHAIN_ID} and retry.`,
+        );
+      }
+      return;
+    }
 
-    const currentHex = await ethereum.request({ method: 'eth_chainId' }).catch(() => null);
+    const currentHex = await withTimeout(
+      ethereum.request({ method: 'eth_chainId' }).catch(() => null),
+      8_000,
+      'eth_chainId',
+    );
     if (currentHex !== hexChainId) {
       try {
         await switchThroughWallet();
@@ -433,23 +499,31 @@ function InstanceRuntimePanel() {
       }
     }
 
+    const finalChainHex = await withTimeout(
+      ethereum.request({ method: 'eth_chainId' }).catch(() => null),
+      8_000,
+      'eth_chainId',
+    );
+    if (finalChainHex !== hexChainId) {
+      throw new Error(
+        `Unable to switch wallet to chain ${TARGET_CHAIN_ID}. Open MetaMask, select chain ${TARGET_CHAIN_ID}, then retry.`,
+      );
+    }
+
     // Validate wallet RPC endpoint by executing a chain RPC.
     try {
-      await ethereum.request({ method: 'eth_blockNumber' });
+      await withTimeout(ethereum.request({ method: 'eth_blockNumber' }), 8_000, 'eth_blockNumber');
     } catch {
       await addThroughWallet();
       await switchThroughWallet();
-      await ethereum.request({ method: 'eth_blockNumber' });
+      await withTimeout(ethereum.request({ method: 'eth_blockNumber' }), 8_000, 'eth_blockNumber');
     }
-  }, [switchChainAsync]);
+  }, [chainId, switchChainAsync]);
 
   const connectWallet = useCallback(async (requestedConnectorId?: string) => {
     if (isWalletConnected) return;
     if (connectors.length === 0) {
-      setNotice({
-        tone: 'error',
-        text: 'No wallet connector found. Install a wallet extension or configure WalletConnect.',
-      });
+      setLaunchNotice('error', 'No wallet connector found. Install a wallet extension or configure WalletConnect.');
       return;
     }
 
@@ -468,22 +542,22 @@ function InstanceRuntimePanel() {
       try {
         await connectAsync({ connector });
         await forceWalletToTargetChain();
-        setNotice({ tone: 'success', text: `Wallet connected via ${connector.name}.` });
+        setLaunchNotice('success', `Wallet connected via ${connector.name}.`);
         return;
       } catch (error) {
         lastError = error as Error;
       }
     }
 
-    setNotice({
-      tone: 'error',
-      text: `Wallet connect failed: ${lastError?.message ?? 'No compatible wallet detected in this browser context.'}`,
-    });
-  }, [connectAsync, connectors, forceWalletToTargetChain, isWalletConnected]);
+    setLaunchNotice(
+      'error',
+      `Wallet connect failed: ${lastError?.message ?? 'No compatible wallet detected in this browser context.'}`,
+    );
+  }, [connectAsync, connectors, forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
 
   const ensureTargetChain = useCallback(async (): Promise<boolean> => {
     if (!isWalletConnected) {
-      setNotice({ tone: 'error', text: 'Connect your wallet first.' });
+      setLaunchNotice('error', 'Connect your wallet first.');
       return false;
     }
     try {
@@ -493,10 +567,10 @@ function InstanceRuntimePanel() {
       if (contractAddress && isAddress(contractAddress)) {
         const targetCode = await jsonRpcCall<string>(TARGET_RPC_URL, 'eth_getCode', [contractAddress, 'latest']);
         if (targetCode === '0x') {
-          setNotice({
-            tone: 'error',
-            text: `RPC ${TARGET_RPC_URL} is reachable but has no contract code at ${contractAddress}. Check deploy-local RPC host/port.`,
-          });
+          setLaunchNotice(
+            'error',
+            `RPC ${TARGET_RPC_URL} is reachable but has no contract code at ${contractAddress}. Check deploy-local RPC host/port.`,
+          );
           return false;
         }
 
@@ -510,25 +584,25 @@ function InstanceRuntimePanel() {
             .catch(() => null);
           const walletCode = typeof walletCodeRaw === 'string' ? walletCodeRaw : null;
           if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
-            setNotice({
-              tone: 'error',
-              text:
-                `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
+            setLaunchNotice(
+              'error',
+              `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
                 `In wallet network settings, set RPC URL to ${TARGET_RPC_URL}, then reconnect and retry.`,
-            });
+            );
             return false;
           }
         }
       }
+      setLaunchFeedback((current) => (current?.tone === 'error' ? null : current));
       return true;
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: `Wallet network sync failed for chain ${TARGET_CHAIN_ID} (${TARGET_RPC_URL}): ${(error as Error).message}`,
-      });
+      setLaunchNotice(
+        'error',
+        `Wallet network sync failed for chain ${TARGET_CHAIN_ID} (${TARGET_RPC_URL}): ${(error as Error).message}`,
+      );
       return false;
     }
-  }, [forceWalletToTargetChain, isWalletConnected]);
+  }, [forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
 
   const copyWalletAddress = useCallback(async () => {
     if (!connectedWallet) return;
@@ -1041,6 +1115,7 @@ function InstanceRuntimePanel() {
     setSurfaceTab('launch');
     setWizardOpen(true);
     setWizardStep(1);
+    setLaunchFeedback(null);
   }, []);
 
   const regenerateProvisionIdentity = useCallback(() => {
@@ -1057,11 +1132,11 @@ function InstanceRuntimePanel() {
 
   const onProvisionInstance = useCallback(async () => {
     if (!provisionName.trim()) {
-      setNotice({ tone: 'error', text: 'Instance name is required.' });
+      setLaunchNotice('error', 'Instance name is required.');
       return;
     }
     if (!provisionTemplateId.trim()) {
-      setNotice({ tone: 'error', text: 'Template pack is required.' });
+      setLaunchNotice('error', 'Template pack is required.');
       return;
     }
 
@@ -1069,7 +1144,7 @@ function InstanceRuntimePanel() {
     try {
       if (DEMO_MODE) {
         if (!token.trim()) {
-          setNotice({ tone: 'error', text: 'Save a bearer token before provisioning.' });
+          setLaunchNotice('error', 'Save a bearer token before provisioning.');
           return;
         }
         const created = await provisionInstance(token, {
@@ -1082,12 +1157,12 @@ function InstanceRuntimePanel() {
         setSelectedId(created.id);
         setWizardOpen(false);
         setSurfaceTab('workspace');
-        setNotice({ tone: 'success', text: `Provisioned ${created.name}.` });
+        setLaunchNotice('success', `Provisioned ${created.name}.`);
         return;
       }
 
       if (!isWalletConnected) {
-        setNotice({ tone: 'error', text: 'Connect your wallet before submitting on-chain jobs.' });
+        setLaunchNotice('error', 'Connect your wallet before submitting on-chain jobs.');
         return;
       }
       if (!(await ensureTargetChain())) {
@@ -1095,10 +1170,10 @@ function InstanceRuntimePanel() {
       }
       const serviceId = resolveServiceId(provisionExecutionTarget);
       if (serviceId === null) {
-        setNotice({
-          tone: 'error',
-          text: `Missing ${provisionExecutionTarget} service ID. Set it in UI advanced settings or .env.`,
-        });
+        setLaunchNotice(
+          'error',
+          `Missing ${provisionExecutionTarget} service ID. Set it in UI advanced settings or .env.`,
+        );
         return;
       }
 
@@ -1127,24 +1202,15 @@ function InstanceRuntimePanel() {
         label: `Create ${provisionName.trim()}`,
       });
       if (!hash) {
-        setNotice({
-          tone: 'error',
-          text: `Create transaction was not submitted${txError ? `: ${txError}` : '.'}`,
-        });
+        setLaunchNotice('error', `Create transaction was not submitted${txError ? `: ${txError}` : '.'}`);
         return;
       }
-      setNotice({
-        tone: 'info',
-        text: `Create job submitted (${hash}). Waiting for operator execution.`,
-      });
+      setLaunchNotice('info', `Create job submitted (${hash}). Waiting for operator execution.`);
       setWizardOpen(false);
       setSurfaceTab('instances');
       setTimeout(() => void refresh(), 2500);
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: `Provision failed: ${(error as Error).message}`,
-      });
+      setLaunchNotice('error', `Provision failed: ${(error as Error).message}`);
     } finally {
       setIsProvisioning(false);
     }
@@ -1161,6 +1227,7 @@ function InstanceRuntimePanel() {
     token,
     txError,
     ensureTargetChain,
+    setLaunchNotice,
   ]);
 
   const onSubmitLifecycleJob = useCallback(
@@ -1395,7 +1462,12 @@ function InstanceRuntimePanel() {
   const selectedInstanceOwnedByWallet = Boolean(
     selectedInstance && connectedWallet && sameAddress(selectedInstance.owner, connectedWallet),
   );
-  const lifecycleTxBusy = txStatus === 'signing' || txStatus === 'pending' || isSwitchingChain;
+  const pendingTxAgeMs = pendingTxSinceMs !== null ? Date.now() - pendingTxSinceMs : 0;
+  const stalePendingTx = txStatus === 'pending' && pendingTxAgeMs > 90_000;
+  const switchingAgeMs = switchRequestSinceMs !== null ? Date.now() - switchRequestSinceMs : 0;
+  const staleSwitchRequest = isSwitchingChain && switchingAgeMs > 20_000;
+  const chainSwitchBusy = isSwitchingChain && !staleSwitchRequest;
+  const lifecycleTxBusy = txStatus === 'signing' || (txStatus === 'pending' && !stalePendingTx) || chainSwitchBusy;
   const walletLabel = isWalletConnected ? truncateAddress(connectedWallet) : 'Wallet Disconnected';
   const walletProviderBalanceWei = parseRpcHexToBigint(walletBalanceRpcHex);
   const targetRpcBalanceWei = parseRpcHexToBigint(walletBalanceTargetRpcHex);
@@ -1423,6 +1495,27 @@ function InstanceRuntimePanel() {
       : chainId === TARGET_CHAIN_ID
         ? `${TARGET_CHAIN_NAME} (${chainId})`
       : `Chain ${chainId}`;
+  const createSubmitDisabledReason = useMemo(() => {
+    if (isProvisioning) return 'Provision request already in progress.';
+    if (!canProvision) return 'Instance name and template are required.';
+    if (DEMO_MODE) return null;
+    if (!isWalletConnected) return 'Connect wallet before submitting.';
+    if (selectedProvisionServiceId === null) return `Missing ${provisionExecutionTarget} service ID.`;
+    if (chainSwitchBusy) return 'Waiting for wallet chain switch confirmation.';
+    if (txStatus === 'signing') return 'Waiting for wallet signature.';
+    if (txStatus === 'pending' && !stalePendingTx) return 'Previous transaction is still pending.';
+    return null;
+  }, [
+    isProvisioning,
+    canProvision,
+    DEMO_MODE,
+    isWalletConnected,
+    selectedProvisionServiceId,
+    provisionExecutionTarget,
+    chainSwitchBusy,
+    txStatus,
+    stalePendingTx,
+  ]);
   const wizardAccessReady = hasToken && (DEMO_MODE || (isWalletConnected && !isWrongChain));
   const selectedAccessTokenDraft = selectedInstance ? (instanceAccessTokenInput[selectedInstance.id] ?? '') : '';
   const scopedSessionExpiryLabel =
@@ -1430,6 +1523,11 @@ function InstanceRuntimePanel() {
       ? new Date(selectedScopedSession.expiresAt * 1000).toLocaleTimeString()
       : 'not issued';
   const hasInjectedWalletProvider = Boolean(browserEthereum());
+  const clearStalePendingTx = useCallback(() => {
+    resetLifecycleTx();
+    setPendingTxSinceMs(null);
+    setNotice({ tone: 'info', text: 'Cleared stale pending transaction state.' });
+  }, [resetLifecycleTx]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1549,7 +1647,7 @@ function InstanceRuntimePanel() {
                           size="sm"
                           variant="secondary"
                           onClick={() => void ensureTargetChain()}
-                          disabled={isSwitchingChain}
+                          disabled={chainSwitchBusy}
                         >
                           {isSwitchingChain ? 'Switching…' : `Switch to ${TARGET_CHAIN_ID}`}
                         </Button>
@@ -1704,6 +1802,20 @@ function InstanceRuntimePanel() {
                       3. Submit
                     </button>
                   </div>
+                  {launchFeedback ? (
+                    <div
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-xs',
+                        launchFeedback.tone === 'error'
+                          ? 'border-red-400/45 bg-red-500/10 text-red-100'
+                          : launchFeedback.tone === 'success'
+                            ? 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'
+                            : 'border-cyan-300/35 bg-cyan-500/10 text-cyan-100',
+                      )}
+                    >
+                      {launchFeedback.text}
+                    </div>
+                  ) : null}
 
                   {wizardStep === 1 ? (
                     <div className="wizard-step-shell">
@@ -1854,7 +1966,7 @@ function InstanceRuntimePanel() {
                                 size="sm"
                                 variant="secondary"
                                 onClick={() => void ensureTargetChain()}
-                                disabled={isSwitchingChain}
+                                disabled={chainSwitchBusy}
                               >
                                 {isSwitchingChain ? 'Switching…' : `Switch to ${TARGET_CHAIN_ID}`}
                               </Button>
@@ -1874,6 +1986,12 @@ function InstanceRuntimePanel() {
                             )}
                           </div>
                         </div>
+                        {staleSwitchRequest ? (
+                          <p className="text-xs claw-text-warning">
+                            Chain switch request is still pending in wallet for {Math.round(switchingAgeMs / 1000)}s.
+                            Approve or reject it in MetaMask, then click switch again.
+                          </p>
+                        ) : null}
 
                         <div className="rounded-xl border border-claw-elements-dividerColor px-3 py-3 space-y-2">
                           <div className="flex items-center justify-between gap-2">
@@ -1996,6 +2114,16 @@ function InstanceRuntimePanel() {
                           <p className="text-xs text-claw-elements-textTertiary break-all">Last Tx {txHash}</p>
                         ) : null}
                         {txError ? <p className="text-xs claw-text-danger">Transaction error: {txError}</p> : null}
+                        {!DEMO_MODE && stalePendingTx ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-xs claw-text-warning">
+                              Previous transaction appears stale ({Math.round(pendingTxAgeMs / 1000)}s without receipt).
+                            </p>
+                            <Button size="sm" variant="ghost" onClick={clearStalePendingTx}>
+                              Clear Pending State
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="wizard-actions">
                         <Button size="sm" variant="ghost" onClick={() => setWizardStep(2)}>Back</Button>
@@ -2018,6 +2146,9 @@ function InstanceRuntimePanel() {
                           </Button>
                         </div>
                       </div>
+                      {!DEMO_MODE && createSubmitDisabledReason ? (
+                        <p className="text-xs text-claw-elements-textTertiary">{createSubmitDisabledReason}</p>
+                      ) : null}
                     </div>
                   ) : null}
                 </CardContent>
