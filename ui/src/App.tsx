@@ -690,7 +690,10 @@ function InstanceRuntimePanel() {
     }
     try {
       selectedChainIdStore.set(TARGET_CHAIN_ID);
-      await forceWalletToTargetChain();
+      const alreadyOnTargetChain = activeChainId === TARGET_CHAIN_ID;
+      if (!(alreadyOnTargetChain && !STRICT_WALLET_RPC_MATCH)) {
+        await forceWalletToTargetChain();
+      }
       const contractAddress = import.meta.env.VITE_TANGLE_CONTRACT?.trim();
       if (contractAddress && isAddress(contractAddress)) {
         const targetCode = await jsonRpcCall<string>(TARGET_RPC_URL, 'eth_getCode', [contractAddress, 'latest']);
@@ -716,6 +719,14 @@ function InstanceRuntimePanel() {
 
           let walletCode = await readWalletCode();
           if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
+            const mismatchText =
+              `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
+              `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`;
+            if (!STRICT_WALLET_RPC_MATCH) {
+              setLaunchNotice('info', `${mismatchText} Continuing with current wallet RPC for this session.`);
+              return true;
+            }
+
             // Self-heal stale chain RPC metadata (common when HTTPS tunnel rotates between runs).
             const addParams = {
               chainId: `0x${TARGET_CHAIN_ID.toString(16)}`,
@@ -747,25 +758,17 @@ function InstanceRuntimePanel() {
               );
               walletCode = await readWalletCode();
             } catch (healError) {
-              const text =
+              setLaunchNotice(
+                'error',
                 `Wallet RPC does not match app RPC and auto-fix failed: ${readErrorMessage(healError)}. ` +
-                `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`;
-              if (STRICT_WALLET_RPC_MATCH) {
-                setLaunchNotice('error', text);
-                return false;
-              }
-              setLaunchNotice('info', `${text} Continuing with current wallet RPC for this session.`);
+                  `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`,
+              );
+              return false;
             }
 
             if (!walletCode || walletCode === '0x' || walletCode.toLowerCase() !== targetCode.toLowerCase()) {
-              const text =
-                `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
-                `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`;
-              if (STRICT_WALLET_RPC_MATCH) {
-                setLaunchNotice('error', text);
-                return false;
-              }
-              setLaunchNotice('info', `${text} Continuing with current wallet RPC for this session.`);
+              setLaunchNotice('error', mismatchText);
+              return false;
             }
           }
         }
@@ -779,7 +782,7 @@ function InstanceRuntimePanel() {
       );
       return false;
     }
-  }, [forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
+  }, [activeChainId, forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
 
   const copyWalletAddress = useCallback(async () => {
     if (!connectedWallet) return;
