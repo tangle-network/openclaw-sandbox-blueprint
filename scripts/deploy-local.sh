@@ -23,6 +23,8 @@ TEE_OPERATOR_API_PORT="${TEE_OPERATOR_API_PORT:-8788}"
 BUILD_UI="${BUILD_UI:-1}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 RUN_SMOKE_CREATE="${RUN_SMOKE_CREATE:-0}"
+ENABLE_HTTPS_RPC_TUNNEL="${ENABLE_HTTPS_RPC_TUNNEL:-0}"
+HTTPS_RPC_TUNNEL_PROVIDER="${HTTPS_RPC_TUNNEL_PROVIDER:-cloudflared}"
 OPENCLAW_RUNTIME_BACKEND="${OPENCLAW_RUNTIME_BACKEND:-docker}"
 OPENCLAW_IMAGE_OPENCLAW="${OPENCLAW_IMAGE_OPENCLAW:-ghcr.io/openclaw/openclaw:latest}"
 OPENCLAW_IMAGE_IRONCLAW="${OPENCLAW_IMAGE_IRONCLAW:-nearaidev/ironclaw-nearai-worker:latest}"
@@ -85,6 +87,7 @@ cleanup() {
     fi
     [[ -n "${INSTANCE_OPERATOR_PID:-}" ]] && kill "$INSTANCE_OPERATOR_PID" 2>/dev/null || true
     [[ -n "${TEE_OPERATOR_PID:-}" ]] && kill "$TEE_OPERATOR_PID" 2>/dev/null || true
+    [[ -n "${RPC_TUNNEL_PID:-}" ]] && kill "$RPC_TUNNEL_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -215,6 +218,54 @@ wait_for_http_ready() {
     done
 }
 
+start_https_rpc_tunnel_if_enabled() {
+    if [[ "$ENABLE_HTTPS_RPC_TUNNEL" != "1" && "$ENABLE_HTTPS_RPC_TUNNEL" != "true" ]]; then
+        return
+    fi
+
+    if [[ "$HTTPS_RPC_TUNNEL_PROVIDER" != "cloudflared" ]]; then
+        echo "ERROR: unsupported HTTPS_RPC_TUNNEL_PROVIDER=$HTTPS_RPC_TUNNEL_PROVIDER (supported: cloudflared)"
+        exit 1
+    fi
+
+    require_cmd cloudflared
+
+    local tunnel_log="$ROOT_DIR/.rpc-https-tunnel.log"
+    rm -f "$tunnel_log"
+
+    echo "  Starting HTTPS RPC tunnel (cloudflared) for Keplr compatibility..."
+    cloudflared tunnel --url "$RPC_URL" --no-autoupdate >"$tunnel_log" 2>&1 &
+    RPC_TUNNEL_PID=$!
+
+    local deadline=$((SECONDS + 35))
+    local tunnel_url=""
+    while [[ $SECONDS -lt $deadline ]]; do
+        if ! kill -0 "$RPC_TUNNEL_PID" 2>/dev/null; then
+            echo "ERROR: HTTPS RPC tunnel process exited early."
+            tail -n 40 "$tunnel_log" || true
+            exit 1
+        fi
+        tunnel_url="$(grep -Eo 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' "$tunnel_log" 2>/dev/null | tail -1 || true)"
+        if [[ -n "$tunnel_url" ]]; then
+            break
+        fi
+        sleep 1
+    done
+
+    if [[ -z "$tunnel_url" ]]; then
+        echo "ERROR: failed to resolve HTTPS RPC tunnel URL from cloudflared logs."
+        tail -n 40 "$tunnel_log" || true
+        exit 1
+    fi
+
+    PUBLIC_HTTP_RPC_URL="$tunnel_url"
+    PUBLIC_WS_RPC_URL="${tunnel_url/https:/wss:}"
+    HTTPS_RPC_TUNNEL_URL="$tunnel_url"
+
+    echo "  HTTPS RPC tunnel URL: $HTTPS_RPC_TUNNEL_URL"
+    echo "  WARNING: tunnel is internet-reachable. Use local/dev keys only."
+}
+
 fund_account_tnt() {
     local addr="$1"
     local amount_wei="$2"
@@ -259,6 +310,7 @@ fund_account_tnt "$USER_ADDR" "$FUND_TNT_WEI"
 for EXTRA_ADDR in $(echo "$EXTRA_FUNDED_ADDRS" | tr ', ' '\n' | sed '/^$/d'); do
     fund_account_tnt "$EXTRA_ADDR" "$FUND_TNT_WEI"
 done
+start_https_rpc_tunnel_if_enabled
 
 # ── [1/11] Ensure Foundry deps for RegisterBlueprint script ─────────────────
 echo "[1/11] Ensuring Solidity dependencies..."
@@ -580,6 +632,9 @@ OPENCLAW_IMAGE_IRONCLAW=$OPENCLAW_IMAGE_IRONCLAW
 OPENCLAW_IMAGE_NANOCLAW=$OPENCLAW_IMAGE_NANOCLAW
 OPENCLAW_NANOCLAW_BUILD_CONTEXT=$OPENCLAW_NANOCLAW_BUILD_CONTEXT
 SERVICE_CALLERS_ARRAY=$SERVICE_CALLERS_ARRAY
+ENABLE_HTTPS_RPC_TUNNEL=$ENABLE_HTTPS_RPC_TUNNEL
+HTTPS_RPC_TUNNEL_PROVIDER=$HTTPS_RPC_TUNNEL_PROVIDER
+HTTPS_RPC_TUNNEL_URL=${HTTPS_RPC_TUNNEL_URL:-}
 
 DEPLOYER_KEY=$DEPLOYER_KEY
 DEPLOYER_ADDR=$DEPLOYER_ADDR
@@ -605,6 +660,8 @@ VITE_INSTANCE_SERVICE_ID=$INSTANCE_SERVICE_ID
 VITE_TEE_INSTANCE_SERVICE_ID=$TEE_INSTANCE_SERVICE_ID
 VITE_OPERATOR_API_TOKEN=$OPENCLAW_OPERATOR_API_TOKEN
 VITE_UI_ACCESS_TOKEN=$OPENCLAW_UI_ACCESS_TOKEN
+VITE_ENABLE_HTTPS_RPC_TUNNEL=$ENABLE_HTTPS_RPC_TUNNEL
+VITE_HTTPS_RPC_TUNNEL_URL=${HTTPS_RPC_TUNNEL_URL:-}
 EOF
 
 echo ""
@@ -622,6 +679,10 @@ echo "    TEE:      http://$PUBLIC_HOST:$TEE_OPERATOR_API_PORT"
 echo "  Browser RPC:"
 echo "    HTTP:     $PUBLIC_HTTP_RPC_URL"
 echo "    WS:       $PUBLIC_WS_RPC_URL"
+if [[ -n "${HTTPS_RPC_TUNNEL_URL:-}" ]]; then
+    echo "  HTTPS RPC tunnel:"
+    echo "    URL:      $HTTPS_RPC_TUNNEL_URL"
+fi
 echo "  Provision callers:"
 echo "    $SERVICE_CALLERS_ARRAY"
 echo ""

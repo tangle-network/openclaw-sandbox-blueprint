@@ -120,6 +120,22 @@ cargo test --all
 ./scripts/ci/run-real-variant-runtime-tests.sh # real OpenClaw + IronClaw + NanoClaw (upstream build)
 ```
 
+### Local full stack (Anvil + operators + UI)
+
+```bash
+./scripts/deploy-local.sh
+```
+
+Keplr note: Keplr requires `https://` RPC URLs when adding/switching EVM chains.
+For local chain `31338`, run:
+
+```bash
+ENABLE_HTTPS_RPC_TUNNEL=1 ./scripts/deploy-local.sh
+```
+
+This starts a Cloudflare quick tunnel (`https://*.trycloudflare.com`) that fronts
+your local Anvil RPC and writes it into `.env.local` + `ui/.env.local`.
+
 ### Run (requires Tangle node + service registration)
 
 ```bash
