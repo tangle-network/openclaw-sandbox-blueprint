@@ -669,7 +669,9 @@ function InstanceRuntimePanel() {
     for (const connector of candidates) {
       try {
         await connectAsync({ connector });
-        await forceWalletToTargetChain();
+        if (STRICT_WALLET_RPC_MATCH) {
+          await forceWalletToTargetChain();
+        }
         setLaunchNotice('success', `Wallet connected via ${connector.name}.`);
         return;
       } catch (error) {
@@ -683,13 +685,45 @@ function InstanceRuntimePanel() {
     );
   }, [connectAsync, connectors, forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
 
-  const ensureTargetChain = useCallback(async (): Promise<boolean> => {
+  const ensureTargetChain = useCallback(async (opts?: { attemptSwitch?: boolean }): Promise<boolean> => {
+    const attemptSwitch = opts?.attemptSwitch ?? false;
     if (!isWalletConnected) {
       setLaunchNotice('error', 'Connect your wallet first.');
       return false;
     }
     try {
       selectedChainIdStore.set(TARGET_CHAIN_ID);
+
+      // Default flow: never trigger wallet network update/switch RPCs on submit.
+      if (!STRICT_WALLET_RPC_MATCH && !attemptSwitch) {
+        let resolvedChainId = activeChainId;
+        if (resolvedChainId === undefined) {
+          const ethereum = browserEthereum();
+          if (ethereum) {
+            const chainHex = await withTimeout(
+              ethereum.request({ method: 'eth_chainId' }).catch(() => null),
+              6_000,
+              'eth_chainId',
+            );
+            if (typeof chainHex === 'string') {
+              const parsed = Number.parseInt(chainHex, 16);
+              if (Number.isFinite(parsed)) {
+                setProviderChainId(parsed);
+                resolvedChainId = parsed;
+              }
+            }
+          }
+        }
+        if (resolvedChainId !== TARGET_CHAIN_ID) {
+          setLaunchNotice(
+            'error',
+            `Wallet is on chain ${resolvedChainId ?? 'unknown'}. Switch to ${TARGET_CHAIN_ID} in wallet first, then retry.`,
+          );
+          return false;
+        }
+        return true;
+      }
+
       const alreadyOnTargetChain = activeChainId === TARGET_CHAIN_ID;
       if (!(alreadyOnTargetChain && !STRICT_WALLET_RPC_MATCH)) {
         await forceWalletToTargetChain();
@@ -1842,7 +1876,7 @@ function InstanceRuntimePanel() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => void ensureTargetChain()}
+                          onClick={() => void ensureTargetChain({ attemptSwitch: true })}
                           disabled={chainSwitchBusy}
                         >
                           {isSwitchingChain ? 'Switching…' : `Switch to ${TARGET_CHAIN_ID}`}
@@ -2161,7 +2195,7 @@ function InstanceRuntimePanel() {
                               <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={() => void ensureTargetChain()}
+                                onClick={() => void ensureTargetChain({ attemptSwitch: true })}
                                 disabled={chainSwitchBusy}
                               >
                                 {isSwitchingChain ? 'Switching…' : `Switch to ${TARGET_CHAIN_ID}`}
