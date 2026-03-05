@@ -781,15 +781,6 @@ function InstanceRuntimePanel() {
     }
   }, [forceWalletToTargetChain, isWalletConnected, setLaunchNotice]);
 
-  const autoWalletSyncKeyRef = useRef<string>('');
-  useEffect(() => {
-    if (!isWalletConnected || !connectedWallet) return;
-    const key = `${connectedWallet.toLowerCase()}:${activeChainId ?? 'na'}:${TARGET_RPC_URL}`;
-    if (autoWalletSyncKeyRef.current === key) return;
-    autoWalletSyncKeyRef.current = key;
-    void ensureTargetChain();
-  }, [activeChainId, connectedWallet, ensureTargetChain, isWalletConnected]);
-
   const copyWalletAddress = useCallback(async () => {
     if (!connectedWallet) return;
     const copied = await copyText(connectedWallet);
@@ -1392,6 +1383,14 @@ function InstanceRuntimePanel() {
         await new Promise((resolve) => setTimeout(resolve, 0));
         const latestError = txErrorRef.current;
         const latestStatus = txStatusRef.current;
+        const normalizedError = (latestError ?? '').toLowerCase();
+        if (normalizedError.includes('requested resource not available')) {
+          setLaunchNotice(
+            'error',
+            'Create transaction was not submitted: wallet has another pending request. Open wallet extension, resolve pending network/sign prompts, then retry.',
+          );
+          return;
+        }
         const fallback =
           latestStatus === 'failed'
             ? 'wallet rejected the transaction or provider returned an error'
