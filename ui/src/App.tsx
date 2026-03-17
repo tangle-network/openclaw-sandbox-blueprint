@@ -21,6 +21,12 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Tabs,
   TabsContent,
@@ -126,6 +132,7 @@ type SessionSource = 'wallet_signature' | 'access_token';
 
 type MainTab = 'workspace' | 'terminal' | 'chat' | 'advanced';
 type PendingSessionDelete = { id: string; title: string };
+type PendingLifecycleConfirm = { jobId: number; label: string; instanceName: string };
 type ScopedSession = {
   token: string;
   expiresAt: number;
@@ -369,6 +376,7 @@ function InstanceRuntimePanel() {
   const [walletMenuOpen, setWalletMenuOpen] = useState(false);
   const [walletCopied, setWalletCopied] = useState(false);
   const [pendingSessionDelete, setPendingSessionDelete] = useState<PendingSessionDelete | null>(null);
+  const [pendingLifecycleConfirm, setPendingLifecycleConfirm] = useState<PendingLifecycleConfirm | null>(null);
   const sessionDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastNoticeRef = useRef<{ tone: NoticeTone; text: string } | null>(null);
   const txErrorRef = useRef<string | null>(null);
@@ -1398,11 +1406,16 @@ function InstanceRuntimePanel() {
 
       const args = encodeAbiParameters(
         [
-          { name: 'name', type: 'string' },
-          { name: 'template_pack_id', type: 'string' },
-          { name: 'config_json', type: 'string' },
+          {
+            type: 'tuple',
+            components: [
+              { name: 'name', type: 'string' },
+              { name: 'template_pack_id', type: 'string' },
+              { name: 'config_json', type: 'string' },
+            ],
+          },
         ],
-        [provisionName.trim(), provisionTemplateId.trim(), configJson],
+        [{ name: provisionName.trim(), template_pack_id: provisionTemplateId.trim(), config_json: configJson }],
       );
 
       const hash = await submitJob({
@@ -1430,7 +1443,8 @@ function InstanceRuntimePanel() {
         setLaunchNotice('error', `Create transaction was not submitted: ${latestError ?? fallback}.`);
         return;
       }
-      setLaunchNotice('info', `Create job submitted (${hash}). Waiting for operator execution.`);
+      toast.success('Create job submitted successfully.');
+      setLaunchNotice('success', `Create job submitted (${hash}). Waiting for operator execution.`);
       setWizardOpen(false);
       setSurfaceTab('instances');
       setTimeout(() => void refresh(), 2500);
@@ -1482,7 +1496,10 @@ function InstanceRuntimePanel() {
         return;
       }
 
-      const args = encodeAbiParameters([{ name: 'instance_id', type: 'string' }], [selectedInstance.id]);
+      const args = encodeAbiParameters(
+        [{ type: 'tuple', components: [{ name: 'instance_id', type: 'string' }] }],
+        [{ instance_id: selectedInstance.id }],
+      );
       const hash = await submitJob({
         serviceId,
         jobId,
@@ -1496,22 +1513,27 @@ function InstanceRuntimePanel() {
         });
         return;
       }
-      setNotice({ tone: 'info', text: `${label} submitted (${hash}). Refreshing status...` });
+      toast.success(`${label} submitted successfully.`);
+      setNotice({ tone: 'success', text: `${label} submitted (${hash}). Refreshing status...` });
       setTimeout(() => void refresh(), 2500);
     },
     [connectedWallet, isWalletConnected, refresh, resolveServiceId, selectedInstance, submitJob, txError, ensureTargetChain],
   );
 
-  const confirmAndDeleteInstance = useCallback(async () => {
-    if (!selectedInstance) return;
-    const typed = window.prompt(`Type "${selectedInstance.name}" to confirm delete.`);
-    if (typed === null) return;
-    if (typed.trim() !== selectedInstance.name) {
-      setNotice({ tone: 'error', text: 'Delete canceled: name did not match exactly.' });
-      return;
-    }
-    await onSubmitLifecycleJob(JOB_DELETE, 'Delete Instance');
-  }, [onSubmitLifecycleJob, selectedInstance]);
+  const requestLifecycleConfirm = useCallback(
+    (jobId: number, label: string) => {
+      if (!selectedInstance) return;
+      setPendingLifecycleConfirm({ jobId, label, instanceName: selectedInstance.name });
+    },
+    [selectedInstance],
+  );
+
+  const executeLifecycleConfirm = useCallback(async () => {
+    if (!pendingLifecycleConfirm) return;
+    const { jobId, label } = pendingLifecycleConfirm;
+    setPendingLifecycleConfirm(null);
+    await onSubmitLifecycleJob(jobId, label);
+  }, [onSubmitLifecycleJob, pendingLifecycleConfirm]);
 
   const onOneClickSetup = useCallback(async () => {
     if (!selectedInstance) return;
@@ -2526,12 +2548,12 @@ function InstanceRuntimePanel() {
                       selectedInstance.status !== 'stopped'
                     }
                   >
-                    Start
+                    {lifecycleTxBusy ? 'Tx Pending\u2026' : 'Start'}
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => void onSubmitLifecycleJob(JOB_STOP, 'Stop Instance')}
+                    onClick={() => requestLifecycleConfirm(JOB_STOP, 'Stop Instance')}
                     disabled={
                       lifecycleTxBusy ||
                       !isWalletConnected ||
@@ -2539,12 +2561,12 @@ function InstanceRuntimePanel() {
                       selectedInstance.status !== 'running'
                     }
                   >
-                    Stop
+                    {lifecycleTxBusy ? 'Tx Pending\u2026' : 'Stop'}
                   </Button>
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => void confirmAndDeleteInstance()}
+                    onClick={() => requestLifecycleConfirm(JOB_DELETE, 'Delete Instance')}
                     disabled={
                       lifecycleTxBusy ||
                       !isWalletConnected ||
@@ -2552,7 +2574,7 @@ function InstanceRuntimePanel() {
                       selectedInstance.status === 'deleted'
                     }
                   >
-                    Delete
+                    {lifecycleTxBusy ? 'Tx Pending\u2026' : 'Delete'}
                   </Button>
                   <Button
                     size="sm"
@@ -2970,6 +2992,34 @@ function InstanceRuntimePanel() {
           )
         ) : null}
       </AnimatedPage>
+
+      <Dialog
+        open={pendingLifecycleConfirm !== null}
+        onOpenChange={(open) => { if (!open) setPendingLifecycleConfirm(null); }}
+      >
+        <DialogContent className="glass-strong">
+          <DialogHeader>
+            <DialogTitle>{pendingLifecycleConfirm?.label}</DialogTitle>
+            <DialogDescription>
+              {pendingLifecycleConfirm?.jobId === JOB_DELETE
+                ? `This will permanently delete "${pendingLifecycleConfirm?.instanceName}". This action cannot be undone.`
+                : `This will stop "${pendingLifecycleConfirm?.instanceName}". The instance can be restarted later.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setPendingLifecycleConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant={pendingLifecycleConfirm?.jobId === JOB_DELETE ? 'destructive' : 'secondary'}
+              onClick={() => void executeLifecycleConfirm()}
+            >
+              {pendingLifecycleConfirm?.label}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
