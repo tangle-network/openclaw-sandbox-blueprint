@@ -1,0 +1,5 @@
+{
+  "done": true,
+  "status": "completed",
+  "reason": "[deterministic] all deterministic checks passed for engineering-openclaw-sandbox-blueprint | [judge] [fallback from codex] Both repair findings resolved. chat_fallback_returns_ok_when_no_chat_command asserts 200, ok:true, and validates assistant fallback text contains 'Chat bridge is not configured' via GET messages. chat_message_missing_text_part_returns_400 asserts 400 and error body mentions 'non-empty text part'. cargo test --workspace: 48 passed, 0 failed, 4 ignored."
+}

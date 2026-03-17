@@ -1,0 +1,38 @@
+{
+  "originalGoal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern.",
+  "hardenedTask": {
+    "goal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern.",
+    "expandedGoal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+    "successCriteria": [
+      "New test function exists in operator_api::tests for chat fallback",
+      "cargo test --workspace passes with no failures",
+      "work is grounded in actual repository state",
+      "completion is backed by executed checks or explicit blocker evidence"
+    ],
+    "checkCommands": [
+      "cargo test",
+      "cargo check"
+    ],
+    "executionNotes": [
+      "If checks are missing, explain the gap explicitly.",
+      "If the task is ambiguous, preserve the original goal and add inferred criteria separately."
+    ],
+    "inferred": true
+  },
+  "checkCommands": [
+    "cargo test",
+    "cargo check",
+    "cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace"
+  ],
+  "toolCommands": [],
+  "selectedWorkerId": "claude",
+  "reviewWorkerId": "codex",
+  "plannerWorkerId": "codex",
+  "sandboxMode": "local",
+  "promptVariantIds": {
+    "hardener": "engineering-hardener:contract-v1",
+    "implementer": "engineering-implementer:operator-v1",
+    "reviewer": "engineering-reviewer:auditor-v1"
+  },
+  "promptPolicyMode": "explicit"
+}

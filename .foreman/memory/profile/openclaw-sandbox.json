@@ -1,0 +1,23 @@
+{
+  "profileId": "openclaw-sandbox",
+  "workerPreferences": [],
+  "evaluationStyle": [],
+  "memoryScopes": [
+    "profile",
+    "project",
+    "environment"
+  ],
+  "operatorPatterns": [],
+  "goalPatterns": [
+    "Building or maintaining an OpenClaw sandbox blueprint (inferred from repo name and profile name)"
+  ],
+  "workflowImprovements": [
+    "Enable trace collection for future sessions so review passes have material to work with",
+    "Consider bootstrapping from Claude Code session transcripts if they exist for this project — check ~/.claude/projects/ for JSONL files matching the openclaw-sandbox-blueprint repo path",
+    "Consider bootstrapping from Claude Code session transcripts if they exist for this project"
+  ],
+  "skillOrToolingImprovements": [
+    "Bootstrap should attempt to discover Claude Code JSONL session files in ~/.claude/projects/ matching the repo path",
+    "Work discovery should scan for TODO/FIXME/HACK comments in the repo as a fallback when no traces or sessions exist"
+  ]
+}

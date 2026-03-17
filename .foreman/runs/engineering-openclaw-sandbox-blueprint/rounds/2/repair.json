@@ -1,0 +1,6 @@
+{
+  "summary": "Repair the issues identified during validation.",
+  "actions": [
+    "Resolve medium finding: Missing review output"
+  ]
+}

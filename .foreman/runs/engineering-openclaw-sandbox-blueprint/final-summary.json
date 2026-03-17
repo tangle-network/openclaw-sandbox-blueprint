@@ -1,0 +1,143 @@
+{
+  "task": {
+    "id": "engineering-openclaw-sandbox-blueprint",
+    "goal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+    "successCriteria": [
+      "New test function exists in operator_api::tests for chat fallback",
+      "cargo test --workspace passes with no failures",
+      "work is grounded in actual repository state",
+      "completion is backed by executed checks or explicit blocker evidence"
+    ],
+    "environment": {
+      "kind": "code",
+      "target": "/home/drew/code/openclaw-sandbox-blueprint"
+    },
+    "policy": {
+      "escalationMode": "auto-repair"
+    },
+    "metadata": {
+      "originalGoal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern.",
+      "profileId": "engineering-foreman",
+      "selectedWorkerId": "claude",
+      "reviewWorkerId": "codex",
+      "plannerWorkerId": "codex",
+      "sandboxMode": "local",
+      "taskEnvelopeInferred": "true",
+      "hardenerPromptVariantId": "engineering-hardener:contract-v1",
+      "implementationPromptVariantId": "engineering-implementer:operator-v1",
+      "reviewPromptVariantId": "engineering-reviewer:auditor-v1",
+      "promptPolicyMode": "explicit"
+    }
+  },
+  "status": "completed",
+  "finishedAt": "2026-03-17T06:55:10.287Z",
+  "rounds": 2,
+  "finalValidation": {
+    "status": "pass",
+    "recommendation": "complete",
+    "summary": "[deterministic] all deterministic checks passed for engineering-openclaw-sandbox-blueprint | [judge] [fallback from codex] Both repair findings resolved. chat_fallback_returns_ok_when_no_chat_command asserts 200, ok:true, and validates assistant fallback text contains 'Chat bridge is not configured' via GET messages. chat_message_missing_text_part_returns_400 asserts 400 and error body mentions 'non-empty text part'. cargo test --workspace: 48 passed, 0 failed, 4 ignored.",
+    "findings": [],
+    "scores": {
+      "deterministic": 1,
+      "quality": 1,
+      "correctness": 1
+    },
+    "evidence": [
+      {
+        "kind": "test",
+        "label": "cargo test",
+        "value": "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 52 tests\ntest auth::tests::env_token_fields_can_be_present ... ok\ntest jobs::lifecycle::tests::auto_start_on_create_defaults_true_and_supports_disable_flag ... ok\ntest ingress_access::tests::aliases_include_openclaw_compat_key ... ok\ntest jobs::lifecycle::tests::profile_defaults_to_openclaw_and_pending_tunnel ... ok\ntest jobs::lifecycle::tests::profile_rejects_unknown_variant ... ok\ntest jobs::lifecycle::tests::profile_supports_variant_and_public_url ... ok\ntest operator_api::tests::control_plane_assets_include_at_least_one_chunk_file ... ok\ntest auth::tests::wallet_challenge_rejects_non_owner_wallet ... ok\ntest operator_api::tests::control_plane_index_asset_is_embedded ... ok\ntest operator_api::tests::instance_access_rejects_mismatched_scoped_session ... ok\ntest operator_api::tests::chat_message_missing_text_part_returns_400 ... ok\ntest operator_api::tests::parse_terminal_request_malformed_json_returns_error ... ok\ntest operator_api::tests::instance_access_rejects_operator_tokens ... ok\ntest operator_api::tests::instance_access_returns_scoped_owner_ui_token ... ok\ntest operator_api::tests::chat_fallback_returns_ok_when_no_chat_command ... ok\ntest operator_api::tests::missing_control_plane_asset_returns_not_found ... ok\ntest operator_api::tests::parse_terminal_request_valid_json ... ok\ntest operator_api::tests::start_setup_persists_runtime_status_and_env ... ok\ntest query::tests::setup_url_falls_back_to_runtime_url_when_public_missing ... ok\ntest query::tests::setup_url_prefers_public_host_when_available ... ok\ntest runtime_adapter::tests::container_env_key_defaults_include_ironclaw_auth_keys ... ok\ntest operator_api::tests::parse_terminal_request_missing_content_type_returns_default ... ok\ntest runtime_adapter::tests::container_ref_prefers_id ... ok\ntest runtime_adapter::tests::docker_container_name_is_stable ... ok\ntest runtime_adapter::tests::docker_lifecycle_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_setup_command_executes_and_writes_output ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_ssh_key_roundtrip ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_variant_ui_matrix_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_error_helpers_match_expected_text ... ok\ntest operator_api::tests::tee_proxy_endpoints_reject_standard_instances ... ok\ntest runtime_adapter::tests::ironclaw_worker_image_requires_noninteractive_auth_env ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_does_not_require_explicit_service_command ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_uses_long_lived_terminal_command ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_forces_shell_entrypoint ... ok\ntest runtime_adapter::tests::openclaw_official_image_uses_host_reachable_default_command ... ok\ntest runtime_adapter::tests::product_variant_mapping_is_stable ... ok\ntest runtime_adapter::tests::resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images ... ok\ntest runtime_adapter::tests::setup_defaults_exist_for_all_variants ... ok\ntest runtime_adapter::tests::setup_env_allowlist_is_enforced_before_exec ... ok\ntest runtime_adapter::tests::validate_env_key_rejects_invalid_values ... ok\ntest runtime_adapter::tests::validate_ssh_inputs_reject_invalid_values ... ok\ntest state::tests::instance_record_config_json_default ... ok\ntest state::tests::instance_state_display ... ok\ntest state::tests::instance_state_roundtrip ... ok\ntest tests::job_ids_are_sequential ... ok\ntest tests::job_ids_are_unique ... ok\ntest tests::router_builds_without_panic ... ok\ntest runtime_adapter::tests::nanoclaw_build_script_is_supported ... ok\ntest auth::tests::wallet_challenge_roundtrip_creates_scoped_session ... ok\ntest operator_api::tests::tee_proxy_endpoints_roundtrip_for_scoped_owner ... ok\ntest runtime_adapter::tests::local_adapter_create_get_save ... ok\ntest state::tests::instance_store_insert_get_list ... ok\n\ntest result: ok. 48 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n\nrunning 7 tests\ntest get_missing_instance_returns_none ... ok\ntest start_transition_stopped_to_running ... ok\ntest create_persists_stopped_record ... ok\ntest config_json_roundtrip ... ok\ntest stop_transition_running_to_stopped ... ok\ntest list_returns_all_instances ... ok\ntest delete_transition_marks_deleted ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n\nrunning 1 test\ntest docker_operator_api_control_plane_e2e ... ignored, requires Docker daemon and network image pull\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest docker_real_variant_runtime_matrix ... ignored, requires Docker daemon, network image pull, and real variant images\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\nwarning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s\n     Running unittests src/main.rs (target/debug/deps/openclaw_sandbox_blueprint-ae6d090a40e55374)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_sandbox_blueprint_lib-269308804965a34c)\n     Running tests/lifecycle.rs (target/debug/deps/lifecycle-30da205cd0a7fd7e)\n     Running tests/operator_api_e2e.rs (target/debug/deps/operator_api_e2e-c9bbe84e484fa592)\n     Running tests/real_variant_runtime.rs (target/debug/deps/real_variant_runtime-74da7907bead5599)\n     Running unittests src/main.rs (target/debug/deps/openclaw_tee_sandbox_blueprint-b27813a0944a9de8)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_tee_sandbox_blueprint_lib-b2f7cf6ce91bdc9b)\n   Doc-tests openclaw_sandbox_blueprint_lib\n   Doc-tests openclaw_tee_sandbox_blueprint_lib",
+        "metadata": {
+          "passed": "true",
+          "exitCode": "0"
+        }
+      },
+      {
+        "kind": "test",
+        "label": "cargo check",
+        "value": "warning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Checking openclaw-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-lib)\n    Checking openclaw-tee-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-lib)\n    Checking openclaw-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-bin)\n    Checking openclaw-tee-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-bin)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.75s",
+        "metadata": {
+          "passed": "true",
+          "exitCode": "0"
+        }
+      },
+      {
+        "kind": "test",
+        "label": "cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace",
+        "value": "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 52 tests\ntest auth::tests::env_token_fields_can_be_present ... ok\ntest ingress_access::tests::aliases_include_openclaw_compat_key ... ok\ntest jobs::lifecycle::tests::profile_defaults_to_openclaw_and_pending_tunnel ... ok\ntest jobs::lifecycle::tests::profile_rejects_unknown_variant ... ok\ntest jobs::lifecycle::tests::profile_supports_variant_and_public_url ... ok\ntest jobs::lifecycle::tests::auto_start_on_create_defaults_true_and_supports_disable_flag ... ok\ntest operator_api::tests::control_plane_assets_include_at_least_one_chunk_file ... ok\ntest operator_api::tests::control_plane_index_asset_is_embedded ... ok\ntest operator_api::tests::instance_access_rejects_operator_tokens ... ok\ntest operator_api::tests::missing_control_plane_asset_returns_not_found ... ok\ntest operator_api::tests::instance_access_rejects_mismatched_scoped_session ... ok\ntest operator_api::tests::instance_access_returns_scoped_owner_ui_token ... ok\ntest operator_api::tests::parse_terminal_request_missing_content_type_returns_default ... ok\ntest operator_api::tests::start_setup_persists_runtime_status_and_env ... ok\ntest runtime_adapter::tests::container_env_key_defaults_include_ironclaw_auth_keys ... ok\ntest query::tests::setup_url_falls_back_to_runtime_url_when_public_missing ... ok\ntest operator_api::tests::parse_terminal_request_valid_json ... ok\ntest operator_api::tests::parse_terminal_request_malformed_json_returns_error ... ok\ntest runtime_adapter::tests::container_ref_prefers_id ... ok\ntest operator_api::tests::tee_proxy_endpoints_reject_standard_instances ... ok\ntest runtime_adapter::tests::docker_lifecycle_smoke ... ignored, requires Docker daemon and network image pull\ntest query::tests::setup_url_prefers_public_host_when_available ... ok\ntest runtime_adapter::tests::docker_setup_command_executes_and_writes_output ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_ssh_key_roundtrip ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_variant_ui_matrix_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_container_name_is_stable ... ok\ntest runtime_adapter::tests::docker_error_helpers_match_expected_text ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_does_not_require_explicit_service_command ... ok\ntest runtime_adapter::tests::ironclaw_worker_image_requires_noninteractive_auth_env ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_forces_shell_entrypoint ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_uses_long_lived_terminal_command ... ok\ntest runtime_adapter::tests::product_variant_mapping_is_stable ... ok\ntest runtime_adapter::tests::openclaw_official_image_uses_host_reachable_default_command ... ok\ntest runtime_adapter::tests::resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images ... ok\ntest runtime_adapter::tests::setup_defaults_exist_for_all_variants ... ok\ntest runtime_adapter::tests::setup_env_allowlist_is_enforced_before_exec ... ok\ntest runtime_adapter::tests::validate_env_key_rejects_invalid_values ... ok\ntest operator_api::tests::chat_message_missing_text_part_returns_400 ... ok\ntest runtime_adapter::tests::validate_ssh_inputs_reject_invalid_values ... ok\ntest state::tests::instance_record_config_json_default ... ok\ntest auth::tests::wallet_challenge_rejects_non_owner_wallet ... ok\ntest state::tests::instance_state_display ... ok\ntest operator_api::tests::chat_fallback_returns_ok_when_no_chat_command ... ok\ntest state::tests::instance_state_roundtrip ... ok\ntest tests::router_builds_without_panic ... ok\ntest tests::job_ids_are_sequential ... ok\ntest tests::job_ids_are_unique ... ok\ntest runtime_adapter::tests::nanoclaw_build_script_is_supported ... ok\ntest auth::tests::wallet_challenge_roundtrip_creates_scoped_session ... ok\ntest operator_api::tests::tee_proxy_endpoints_roundtrip_for_scoped_owner ... ok\ntest runtime_adapter::tests::local_adapter_create_get_save ... ok\ntest state::tests::instance_store_insert_get_list ... ok\n\ntest result: ok. 48 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n\nrunning 7 tests\ntest delete_transition_marks_deleted ... ok\ntest config_json_roundtrip ... ok\ntest get_missing_instance_returns_none ... ok\ntest start_transition_stopped_to_running ... ok\ntest list_returns_all_instances ... ok\ntest create_persists_stopped_record ... ok\ntest stop_transition_running_to_stopped ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s\n\n\nrunning 1 test\ntest docker_operator_api_control_plane_e2e ... ignored, requires Docker daemon and network image pull\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest docker_real_variant_runtime_matrix ... ignored, requires Docker daemon, network image pull, and real variant images\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\nwarning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s\n     Running unittests src/main.rs (target/debug/deps/openclaw_sandbox_blueprint-ae6d090a40e55374)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_sandbox_blueprint_lib-269308804965a34c)\n     Running tests/lifecycle.rs (target/debug/deps/lifecycle-30da205cd0a7fd7e)\n     Running tests/operator_api_e2e.rs (target/debug/deps/operator_api_e2e-c9bbe84e484fa592)\n     Running tests/real_variant_runtime.rs (target/debug/deps/real_variant_runtime-74da7907bead5599)\n     Running unittests src/main.rs (target/debug/deps/openclaw_tee_sandbox_blueprint-b27813a0944a9de8)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_tee_sandbox_blueprint_lib-b2f7cf6ce91bdc9b)\n   Doc-tests openclaw_sandbox_blueprint_lib\n   Doc-tests openclaw_tee_sandbox_blueprint_lib",
+        "metadata": {
+          "passed": "true",
+          "exitCode": "0"
+        }
+      },
+      {
+        "kind": "log",
+        "label": "stdout",
+        "value": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":51052,\"duration_api_ms\":47460,\"num_turns\":7,\"result\":\"Both prior findings are resolved:\\n\\n1. **\\\"Test does not assert fallback message content\\\"** — Fixed: lines 2243-2254 fetch messages via GET and assert `text.contains(\\\"Chat bridge is not configured\\\")`.\\n2. **\\\"No negative case for missing text part\\\"** — Fixed: `chat_message_missing_text_part_returns_400` (lines 2259-2362) sends an image-only message and asserts 400 + error message content.\\n\\n```json\\n{\\n  \\\"status\\\": \\\"pass\\\",\\n  \\\"recommendation\\\": \\\"complete\\\",\\n  \\\"summary\\\": \\\"Both repair findings resolved. chat_fallback_returns_ok_when_no_chat_command asserts 200, ok:true, and validates assistant fallback text contains 'Chat bridge is not configured' via GET messages. chat_message_missing_text_part_returns_400 asserts 400 and error body mentions 'non-empty text part'. cargo test --workspace: 48 passed, 0 failed, 4 ignored.\\\",\\n  \\\"findings\\\": [],\\n  \\\"scores\\\": {\\n    \\\"quality\\\": 9,\\n    \\\"correctness\\\": 9\\n  },\\n  \\\"evidence\\\": [\\n    {\\\"kind\\\": \\\"note\\\", \\\"label\\\": \\\"cargo test --workspace\\\", \\\"value\\\": \\\"48 passed, 0 failed, 4 ignored\\\"},\\n    {\\\"kind\\\": \\\"note\\\", \\\"label\\\": \\\"fallback content assertion\\\", \\\"value\\\": \\\"line 2252: assert text.contains(\\\\\\\"Chat bridge is not configured\\\\\\\")\\\"},\\n    {\\\"kind\\\": \\\"note\\\", \\\"label\\\": \\\"missing text part negative case\\\", \\\"value\\\": \\\"line 2350-2361: asserts 400 + error mentions 'non-empty text part'\\\"},\\n    {\\\"kind\\\": \\\"note\\\", \\\"label\\\": \\\"fallback logic location\\\", \\\"value\\\": \\\"lines 1172-1178: returns informative string when no CHAT_COMMAND env var\\\"}\\n  ]\\n}\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"91c95fc9-79f8-4186-babc-90e75b902c6a\",\"total_cost_usd\":0.19007825000000003,\"usage\":{\"input_tokens\":8,\"cache_creation_input_tokens\":14061,\"cache_read_input_tokens\":141614,\"output_tokens\":1254,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":14061,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-opus-4-6[1m]\":{\"inputTokens\":8,\"outputTokens\":1254,\"cacheReadInputTokens\":141614,\"cacheCreationInputTokens\":14061,\"webSearchRequests\":0,\"costUSD\":0.19007825000000003,\"contextWindow\":1000000,\"maxOutputTokens\":64000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"7334f8eb-d322-46ca-9c77-3aaa9fc9b275\"}",
+        "metadata": {
+          "durationMs": "52007",
+          "providerId": "claude",
+          "exitCode": "0",
+          "costUsd": "0.19007825000000003",
+          "providerFormat": "json",
+          "sessionId": "91c95fc9-79f8-4186-babc-90e75b902c6a",
+          "stopReason": "end_turn",
+          "numTurns": "7",
+          "modelIds": "claude-opus-4-6[1m]",
+          "inputTokens": "8",
+          "cacheCreationInputTokens": "14061",
+          "cacheReadInputTokens": "141614",
+          "outputTokens": "1254",
+          "totalCostUsd": "0.19007825000000003"
+        }
+      },
+      {
+        "kind": "log",
+        "label": "stderr",
+        "value": "",
+        "metadata": {
+          "durationMs": "52007",
+          "providerId": "claude",
+          "exitCode": "0",
+          "costUsd": "0.19007825000000003",
+          "providerFormat": "json",
+          "sessionId": "91c95fc9-79f8-4186-babc-90e75b902c6a",
+          "stopReason": "end_turn",
+          "numTurns": "7",
+          "modelIds": "claude-opus-4-6[1m]",
+          "inputTokens": "8",
+          "cacheCreationInputTokens": "14061",
+          "cacheReadInputTokens": "141614",
+          "outputTokens": "1254",
+          "totalCostUsd": "0.19007825000000003"
+        }
+      },
+      {
+        "kind": "note",
+        "label": "cargo test --workspace",
+        "value": "48 passed, 0 failed, 4 ignored"
+      },
+      {
+        "kind": "note",
+        "label": "fallback content assertion",
+        "value": "line 2252: assert text.contains(\"Chat bridge is not configured\")"
+      },
+      {
+        "kind": "note",
+        "label": "missing text part negative case",
+        "value": "line 2350-2361: asserts 400 + error mentions 'non-empty text part'"
+      },
+      {
+        "kind": "note",
+        "label": "fallback logic location",
+        "value": "lines 1172-1178: returns informative string when no CHAT_COMMAND env var"
+      }
+    ]
+  },
+  "outcome": {
+    "status": "completed",
+    "summary": "[deterministic] all deterministic checks passed for engineering-openclaw-sandbox-blueprint | [judge] [fallback from codex] Both repair findings resolved. chat_fallback_returns_ok_when_no_chat_command asserts 200, ok:true, and validates assistant fallback text contains 'Chat bridge is not configured' via GET messages. chat_message_missing_text_part_returns_400 asserts 400 and error body mentions 'non-empty text part'. cargo test --workspace: 48 passed, 0 failed, 4 ignored.",
+    "validated": true
+  },
+  "reason": "[deterministic] all deterministic checks passed for engineering-openclaw-sandbox-blueprint | [judge] [fallback from codex] Both repair findings resolved. chat_fallback_returns_ok_when_no_chat_command asserts 200, ok:true, and validates assistant fallback text contains 'Chat bridge is not configured' via GET messages. chat_message_missing_text_part_returns_400 asserts 400 and error body mentions 'non-empty text part'. cargo test --workspace: 48 passed, 0 failed, 4 ignored."
+}

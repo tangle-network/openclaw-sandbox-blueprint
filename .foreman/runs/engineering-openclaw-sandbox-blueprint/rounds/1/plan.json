@@ -1,0 +1,17 @@
+{
+  "summary": "Use claude to advance the engineering task",
+  "tracks": [
+    {
+      "id": "implement",
+      "goal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+      "capability": "code",
+      "metadata": {
+        "workerId": "claude"
+      },
+      "input": {
+        "workerId": "claude"
+      }
+    }
+  ],
+  "risks": []
+}

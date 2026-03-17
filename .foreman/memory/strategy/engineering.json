@@ -1,0 +1,14 @@
+{
+  "taskShape": "engineering",
+  "successfulPatterns": [
+    "validated by cargo test",
+    "validated by cargo check",
+    "validated by cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace"
+  ],
+  "badPatterns": [
+    "missing or failing validation gates"
+  ],
+  "repairRecipes": [
+    "repair Missing review output"
+  ]
+}

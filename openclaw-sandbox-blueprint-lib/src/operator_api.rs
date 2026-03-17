@@ -2122,4 +2122,242 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
+
+    /// When no OPENCLAW_VARIANT_*_CHAT_COMMAND env var is set, sending a chat
+    /// message should return 200 with an informative assistant fallback, not 400.
+    #[tokio::test]
+    async fn chat_fallback_returns_ok_when_no_chat_command() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use http_body_util::BodyExt;
+        use tower::ServiceExt;
+
+        let instance_id = "inst-chat-fallback";
+        let owner = "0x0000000000000000000000000000000000000001";
+        let access_token = "test-access-token";
+
+        let adapter = TestAdapter::with_instance(test_instance(instance_id, owner));
+        let state = ApiState {
+            adapter,
+            auth: AuthService::new(AuthConfig {
+                challenge_ttl_secs: 60,
+                session_ttl_secs: 300,
+                access_token: Some(access_token.to_string()),
+                operator_api_token: None,
+                allow_wallet_signature_access_token_fallback: false,
+            }),
+            sessions: Arc::new(LiveSessionStore::default()),
+        };
+
+        let app = AxumRouter::new()
+            .route("/auth/session/token", post(auth_session_token))
+            .route(
+                "/instances/{id}/session/sessions",
+                post(create_chat_session),
+            )
+            .route(
+                "/instances/{id}/session/sessions/{session_id}/messages",
+                get(get_session_messages).post(send_session_message),
+            )
+            .with_state(state);
+
+        // Step 1: obtain a scoped session token
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/session/token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(
+                        r#"{{"instanceId":"{instance_id}","accessToken":"{access_token}"}}"#
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let token = body["token"].as_str().unwrap().to_string();
+
+        // Step 2: create a chat session
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/instances/{instance_id}/session/sessions"))
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(r#"{"title":"fallback test"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let session_id = body["id"].as_str().unwrap().to_string();
+
+        // Step 3: send a chat message — no CHAT_COMMAND env var is set
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/instances/{instance_id}/session/sessions/{session_id}/messages"
+                    ))
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(
+                        r#"{"parts":[{"type":"text","text":"hello"}]}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "chat fallback must not return an error");
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(body["ok"], serde_json::json!(true));
+
+        // Step 4: fetch session messages and verify the assistant fallback text
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!(
+                        "/instances/{instance_id}/session/sessions/{session_id}/messages"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let messages = body.as_array().expect("messages should be an array");
+        let assistant_msg = messages
+            .iter()
+            .find(|m| m["info"]["role"] == "assistant")
+            .expect("should have an assistant message");
+        let text = assistant_msg["parts"][0]["text"]
+            .as_str()
+            .expect("assistant message should have text");
+        assert!(
+            text.contains("Chat bridge is not configured"),
+            "fallback message should explain chat bridge is not configured, got: {text}"
+        );
+    }
+
+    /// Sending a message with no text part should return 400.
+    #[tokio::test]
+    async fn chat_message_missing_text_part_returns_400() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use http_body_util::BodyExt;
+        use tower::ServiceExt;
+
+        let instance_id = "inst-no-text";
+        let owner = "0x0000000000000000000000000000000000000001";
+        let access_token = "test-access-token";
+
+        let adapter = TestAdapter::with_instance(test_instance(instance_id, owner));
+        let state = ApiState {
+            adapter,
+            auth: AuthService::new(AuthConfig {
+                challenge_ttl_secs: 60,
+                session_ttl_secs: 300,
+                access_token: Some(access_token.to_string()),
+                operator_api_token: None,
+                allow_wallet_signature_access_token_fallback: false,
+            }),
+            sessions: Arc::new(LiveSessionStore::default()),
+        };
+
+        let app = AxumRouter::new()
+            .route("/auth/session/token", post(auth_session_token))
+            .route(
+                "/instances/{id}/session/sessions",
+                post(create_chat_session),
+            )
+            .route(
+                "/instances/{id}/session/sessions/{session_id}/messages",
+                post(send_session_message),
+            )
+            .with_state(state);
+
+        // Obtain a scoped session token
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/session/token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(
+                        r#"{{"instanceId":"{instance_id}","accessToken":"{access_token}"}}"#
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let token = body["token"].as_str().unwrap().to_string();
+
+        // Create a chat session
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/instances/{instance_id}/session/sessions"))
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(r#"{"title":"no text test"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let session_id = body["id"].as_str().unwrap().to_string();
+
+        // Send a message with no text part — only an image part
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/instances/{instance_id}/session/sessions/{session_id}/messages"
+                    ))
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(
+                        r#"{"parts":[{"type":"image","url":"data:image/png;base64,AA=="}]}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "missing text part should return 400"
+        );
+        let body: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let error_msg = body["error"]["message"].as_str().unwrap_or("");
+        assert!(
+            error_msg.contains("non-empty text part"),
+            "error should mention text part requirement, got: {error_msg}"
+        );
+    }
 }

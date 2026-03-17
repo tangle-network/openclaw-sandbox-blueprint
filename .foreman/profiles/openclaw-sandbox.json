@@ -1,0 +1,26 @@
+{
+  "profile": {
+    "id": "openclaw-sandbox",
+    "name": "OpenClaw Sandbox Blueprint",
+    "preferredWorkers": [],
+    "preferredCapabilities": [
+      "code"
+    ],
+    "metadata": {
+      "bootstrapTraceCount": "0",
+      "bootstrapTranscriptCount": "0",
+      "bootstrapRepoCount": "1"
+    }
+  },
+  "summary": "Profile openclaw-sandbox has no session history, traces, or transcripts to analyze. The profile was bootstrapped from a single repo (openclaw-sandbox-blueprint) but no operator behavior has been observed yet. This is a cold-start profile — all recommendations are structural, aimed at enabling meaningful review once sessions begin.",
+  "createdAt": "2026-03-17T06:33:11.670Z",
+  "updatedAt": "2026-03-17T06:33:51.615Z",
+  "bootstrap": {
+    "sources": [
+      "repo:/home/drew/code/openclaw-sandbox-blueprint"
+    ],
+    "traceCount": 0,
+    "transcriptCount": 0,
+    "repoCount": 1
+  }
+}
