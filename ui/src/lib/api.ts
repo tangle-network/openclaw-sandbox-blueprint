@@ -189,7 +189,10 @@ async function parseError(response: Response): Promise<string> {
 
 async function requestJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  headers.set('Content-Type', 'application/json');
+  const hasBody = init?.body !== undefined && init.body !== null;
+  if (hasBody && !(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (token.trim().length > 0) {
     headers.set('Authorization', `Bearer ${token.trim()}`);
   }

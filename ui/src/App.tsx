@@ -719,7 +719,8 @@ function InstanceRuntimePanel() {
       }
 
       const alreadyOnTargetChain = activeChainId === TARGET_CHAIN_ID;
-      if (!(alreadyOnTargetChain && !STRICT_WALLET_RPC_MATCH)) {
+      const shouldForceWalletSync = attemptSwitch || STRICT_WALLET_RPC_MATCH || !alreadyOnTargetChain;
+      if (shouldForceWalletSync) {
         await forceWalletToTargetChain();
       }
       const contractAddress = import.meta.env.VITE_TANGLE_CONTRACT?.trim();
@@ -750,7 +751,7 @@ function InstanceRuntimePanel() {
             const mismatchText =
               `Wallet RPC does not match app RPC for chain ${TARGET_CHAIN_ID}. ` +
               `Set wallet RPC URL to ${TARGET_RPC_URL}, reconnect, and retry.`;
-            if (!STRICT_WALLET_RPC_MATCH) {
+            if (!STRICT_WALLET_RPC_MATCH && !attemptSwitch) {
               setLaunchNotice('info', `${mismatchText} Continuing with current wallet RPC for this session.`);
               return true;
             }
@@ -1713,6 +1714,18 @@ function InstanceRuntimePanel() {
         : isWalletBalanceLoading || isWalletBalanceRpcLoading
         ? 'Loading…'
         : 'n/a';
+  const walletBalanceFallbackActive = Boolean(
+    isWalletConnected && walletBalanceError && !walletBalance && targetRpcBalanceLabel,
+  );
+  const walletBalanceUnavailable = Boolean(
+    isWalletConnected &&
+      walletBalanceError &&
+      !walletBalance &&
+      !targetRpcBalanceLabel &&
+      !walletProviderBalanceLabel &&
+      !isWalletBalanceLoading &&
+      !isWalletBalanceRpcLoading,
+  );
   const chainLabel =
     activeChainId === undefined
       ? 'n/a'
@@ -1855,15 +1868,35 @@ function InstanceRuntimePanel() {
                         <p className="text-xs">{chainLabel}</p>
                       </div>
                     </div>
-                    {walletBalanceError ? (
+                    {walletBalanceUnavailable ? (
                       <p className="text-[11px] claw-text-warning" role="none">
-                        Wallet RPC fallback active.
+                        Wallet balance unavailable. Update wallet RPC for chain {TARGET_CHAIN_ID} and reconnect.
+                      </p>
+                    ) : null}
+                    {walletBalanceFallbackActive ? (
+                      <p className="text-[11px] text-claw-elements-textTertiary" role="none">
+                        Wallet RPC query failed. Showing balance from app RPC.
                       </p>
                     ) : null}
                     {walletBalanceTargetRpcHex ? (
                       <p className="text-[11px] text-claw-elements-textTertiary" role="none">
                         Target RPC balance check active ({TARGET_RPC_URL})
                       </p>
+                    ) : null}
+                    {(walletBalanceFallbackActive || walletBalanceUnavailable) && !isWrongChain ? (
+                      <div className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-2.5 py-2 space-y-2" role="none">
+                        <p className="text-xs claw-text-warning">
+                          Wallet RPC may be stale for chain {TARGET_CHAIN_ID}. Re-sync network details.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void ensureTargetChain({ attemptSwitch: true })}
+                          disabled={chainSwitchBusy}
+                        >
+                          {isSwitchingChain ? 'Re-syncing…' : 'Re-sync Wallet RPC'}
+                        </Button>
+                      </div>
                     ) : null}
                     {isWrongChain ? (
                       <div className="rounded-lg border border-amber-400/35 bg-amber-500/10 px-2.5 py-2 space-y-2" role="none">

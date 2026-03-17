@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -748,9 +749,9 @@ async fn create_terminal_session(
     State(state): State<ApiState>,
     headers: HeaderMap,
     Path(id): Path<String>,
-    request: Option<Json<CreateTerminalRequest>>,
+    request: Result<Json<CreateTerminalRequest>, JsonRejection>,
 ) -> Result<Json<CreateTerminalResponse>, ApiError> {
-    let request = request.map(|Json(v)| v).unwrap_or_default();
+    let request = parse_terminal_request(request)?;
     let (record, owner) = load_scoped_instance(
         &state,
         &headers,
@@ -791,6 +792,22 @@ async fn create_terminal_session(
     Ok(Json(CreateTerminalResponse {
         data: TerminalSessionData { session_id },
     }))
+}
+
+fn parse_terminal_request(
+    request: Result<Json<CreateTerminalRequest>, JsonRejection>,
+) -> Result<CreateTerminalRequest, ApiError> {
+    match request {
+        Ok(Json(value)) => Ok(value),
+        Err(JsonRejection::MissingJsonContentType(_)) => Ok(CreateTerminalRequest::default()),
+        Err(rejection) if rejection.body_text().contains("EOF while parsing a value") => {
+            Ok(CreateTerminalRequest::default())
+        }
+        Err(rejection) => Err(ApiError::BadRequest(format!(
+            "invalid terminal request body: {}",
+            rejection.body_text()
+        ))),
+    }
 }
 
 async fn execute_terminal_command(
@@ -1136,26 +1153,28 @@ async fn send_session_message(
         .ok_or_else(|| ApiError::BadRequest("message requires a non-empty text part".to_string()))?
         .to_string();
 
-    let chat_command = chat_command_for_variant(&record.claw_variant).ok_or_else(|| {
-        ApiError::BadRequest(format!(
-            "chat command is not configured for variant {}; set OPENCLAW_VARIANT_{}_CHAT_COMMAND",
+    let assistant_text = if let Some(chat_command) = chat_command_for_variant(&record.claw_variant)
+    {
+        let mut env = BTreeMap::new();
+        env.insert("OPENCLAW_CHAT_PROMPT".to_string(), prompt.clone());
+
+        let output = state
+            .adapter
+            .run_instance_command(&record, &chat_command, &env)
+            .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        if !output.stdout.trim().is_empty() {
+            output.stdout.trim().to_string()
+        } else if !output.stderr.trim().is_empty() {
+            output.stderr.trim().to_string()
+        } else {
+            format!("command completed with exit code {}", output.exit_code)
+        }
+    } else {
+        format!(
+            "Chat bridge is not configured for variant {}. Use Terminal for setup, or set OPENCLAW_VARIANT_{}_CHAT_COMMAND.",
             record.claw_variant,
             variant_env_component(&record.claw_variant)
-        ))
-    })?;
-    let mut env = BTreeMap::new();
-    env.insert("OPENCLAW_CHAT_PROMPT".to_string(), prompt.clone());
-
-    let output = state
-        .adapter
-        .run_instance_command(&record, &chat_command, &env)
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let assistant_text = if !output.stdout.trim().is_empty() {
-        output.stdout.trim().to_string()
-    } else if !output.stderr.trim().is_empty() {
-        output.stderr.trim().to_string()
-    } else {
-        format!("command completed with exit code {}", output.exit_code)
+        )
     };
 
     let updated = state
