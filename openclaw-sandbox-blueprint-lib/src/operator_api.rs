@@ -2032,9 +2032,7 @@ mod tests {
         use http_body_util::BodyExt;
         use tower::ServiceExt;
 
-        async fn handler(
-            req: Result<Json<CreateTerminalRequest>, JsonRejection>,
-        ) -> Response {
+        async fn handler(req: Result<Json<CreateTerminalRequest>, JsonRejection>) -> Response {
             match parse_terminal_request(req) {
                 Ok(r) => {
                     let cmd = r.command.unwrap_or_default();
@@ -2068,9 +2066,7 @@ mod tests {
         use axum::http::Request;
         use tower::ServiceExt;
 
-        async fn handler(
-            req: Result<Json<CreateTerminalRequest>, JsonRejection>,
-        ) -> Response {
+        async fn handler(req: Result<Json<CreateTerminalRequest>, JsonRejection>) -> Response {
             match parse_terminal_request(req) {
                 Ok(_) => StatusCode::OK.into_response(),
                 Err(e) => e.into_response(),
@@ -2098,9 +2094,7 @@ mod tests {
         use axum::http::Request;
         use tower::ServiceExt;
 
-        async fn handler(
-            req: Result<Json<CreateTerminalRequest>, JsonRejection>,
-        ) -> Response {
+        async fn handler(req: Result<Json<CreateTerminalRequest>, JsonRejection>) -> Response {
             match parse_terminal_request(req) {
                 Ok(_) => StatusCode::OK.into_response(),
                 Err(e) => e.into_response(),
@@ -2211,14 +2205,16 @@ mod tests {
                     ))
                     .header("content-type", "application/json")
                     .header("authorization", format!("Bearer {token}"))
-                    .body(Body::from(
-                        r#"{"parts":[{"type":"text","text":"hello"}]}"#,
-                    ))
+                    .body(Body::from(r#"{"parts":[{"type":"text","text":"hello"}]}"#))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::OK, "chat fallback must not return an error");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "chat fallback must not return an error"
+        );
         let body: serde_json::Value =
             serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(body["ok"], serde_json::json!(true));

@@ -87,7 +87,8 @@ fn resolve_setup_url_for_owner(record: &InstanceRecord) -> Option<String> {
 }
 
 pub fn instance_view(record: &InstanceRecord) -> InstanceView {
-    let setup_url = resolve_setup_url_for_owner(record).or_else(|| record.runtime.setup_url.clone());
+    let setup_url =
+        resolve_setup_url_for_owner(record).or_else(|| record.runtime.setup_url.clone());
 
     InstanceView {
         id: record.id.clone(),
