@@ -2024,4 +2024,102 @@ mod tests {
         let response = static_asset_path("assets/does-not-exist.js");
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn parse_terminal_request_valid_json() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use http_body_util::BodyExt;
+        use tower::ServiceExt;
+
+        async fn handler(
+            req: Result<Json<CreateTerminalRequest>, JsonRejection>,
+        ) -> Response {
+            match parse_terminal_request(req) {
+                Ok(r) => {
+                    let cmd = r.command.unwrap_or_default();
+                    (StatusCode::OK, cmd).into_response()
+                }
+                Err(e) => e.into_response(),
+            }
+        }
+
+        let app = AxumRouter::new().route("/", post(handler));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"command":"bash"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], b"bash");
+    }
+
+    #[tokio::test]
+    async fn parse_terminal_request_missing_content_type_returns_default() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        async fn handler(
+            req: Result<Json<CreateTerminalRequest>, JsonRejection>,
+        ) -> Response {
+            match parse_terminal_request(req) {
+                Ok(_) => StatusCode::OK.into_response(),
+                Err(e) => e.into_response(),
+            }
+        }
+
+        let app = AxumRouter::new().route("/", post(handler));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn parse_terminal_request_malformed_json_returns_error() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        async fn handler(
+            req: Result<Json<CreateTerminalRequest>, JsonRejection>,
+        ) -> Response {
+            match parse_terminal_request(req) {
+                Ok(_) => StatusCode::OK.into_response(),
+                Err(e) => e.into_response(),
+            }
+        }
+
+        let app = AxumRouter::new().route("/", post(handler));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{invalid json!!!"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
 }

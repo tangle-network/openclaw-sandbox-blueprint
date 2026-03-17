@@ -26,3 +26,5 @@ uuid = { version = "1", features = ["v4"] }
 k256 = { version = "0.13", features = ["ecdsa"] }
 tiny-keccak = { version = "2", features = ["keccak"] }
 hex = "0.4"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

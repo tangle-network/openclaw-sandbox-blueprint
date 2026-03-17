@@ -6546,6 +6546,7 @@ dependencies = [
  "blueprint-sdk",
  "chrono",
  "hex",
+ "http-body-util",
  "include_dir",
  "k256",
  "once_cell",
@@ -6555,6 +6556,7 @@ dependencies = [
  "serde_json",
  "tiny-keccak",
  "tokio",
+ "tower",
  "tracing",
  "uuid 1.22.0",
 ]
