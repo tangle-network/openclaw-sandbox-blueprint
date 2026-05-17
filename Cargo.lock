@@ -2676,7 +2676,8 @@ dependencies = [
 
 [[package]]
 name = "blueprint-sdk"
-version = "0.1.0-alpha.22"
+version = "0.2.0-alpha.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "alloy",
  "blueprint-auth",
