@@ -3,7 +3,13 @@
   "successfulPatterns": [
     "validated by cargo test",
     "validated by cargo check",
-    "validated by cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace"
+    "validated by cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace",
+    "validated by cd /home/drew/code/openclaw-sandbox-blueprint/ui && pnpm run build:embedded",
+    "validated-by: cargo fmt --check",
+    "validated-by: cargo clippy --workspace",
+    "validated-by: cargo test --workspace",
+    "validated-by: cargo fmt --all -- --check",
+    "validated-by: cargo clippy --workspace --all-targets --all-features -- -D warnings"
   ],
   "badPatterns": [
     "missing or failing validation gates"

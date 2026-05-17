@@ -1,7 +1,8 @@
 {
   "summary": "Repair the issues identified during validation.",
   "actions": [
-    "Resolve low finding: Test does not assert fallback message content",
-    "Resolve low finding: No negative case for missing text part"
+    "Resolve low finding: InstanceIdRequest ABI encoding uses bare parameter, not sol struct tuple",
+    "Resolve low finding: Create flow encodes 3 bare strings, not CreateInstanceRequest struct tuple",
+    "Resolve low finding: No explicit success toast for lifecycle jobs (start/stop/delete)"
   ]
 }

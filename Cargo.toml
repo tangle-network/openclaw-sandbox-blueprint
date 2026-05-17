@@ -23,5 +23,5 @@ debug = 1
 # Use local blueprint SDK checkout for development/testing.
 # Remove this section before publishing or when the upstream crates are published.
 [patch."https://github.com/tangle-network/blueprint.git"]
-blueprint-sdk = { path = "../blueprint/crates/sdk" }
+blueprint-sdk = { version = "0.2.0-alpha.5" }
 blueprint-producers-extra = { path = "../blueprint/crates/producers-extra" }
