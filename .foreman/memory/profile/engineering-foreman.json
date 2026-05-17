@@ -12,11 +12,5 @@
     "profile",
     "project",
     "environment"
-  ],
-  "operatorPatterns": [
-    "latest goal: Add a unit test for the parse_terminal_request function in operator_api.rs that verifies: (1) valid JSON body returns the parsed request, (2) missing content-type header returns default CreateTerminalRequest, (3) malformed JSON body returns an error. Add the test to the existing operator_api::tests module."
-  ],
-  "workflowImprovements": [
-    "prefer validation-backed completion"
   ]
 }

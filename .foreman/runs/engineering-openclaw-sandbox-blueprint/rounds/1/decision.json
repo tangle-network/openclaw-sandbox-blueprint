@@ -1,5 +1,5 @@
 {
-  "done": false,
-  "status": "running",
-  "reason": "Repair the issues identified during validation."
+  "done": true,
+  "status": "completed",
+  "reason": "[deterministic] all deterministic checks passed for engineering-openclaw-sandbox-blueprint | [judge] [fallback from codex] All CI success criteria verified. clippy, fmt, test, and audit pass cleanly. The clippy unwrap_or_else fix was already applied in f2a76e1. The audit.toml correctly ignores 11 upstream transitive advisories from the blueprint-sdk dependency tree. The single clippy warning originates from the upstream blueprint-keystore crate (not this workspace), so it does not trigger -D warnings for this repo's workspace targets."
 }

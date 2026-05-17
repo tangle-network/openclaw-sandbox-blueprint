@@ -1,10 +1,11 @@
 {
   "task": {
     "id": "engineering-openclaw-sandbox-blueprint",
-    "goal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+    "goal": "Fix all CI failures on PR #13. Clippy fails with 'use of unwrap_or_else to construct default value'. Security audit fails on upstream deps (not actionable, but check if there's an audit.toml to ignore known vulns). Fix clippy, ensure cargo fmt --check and cargo test --workspace pass, push the fix. Work inside /home/drew/code/openclaw-sandbox-blueprint. Complete the full scope to production quality. Treat review, formatting, linting, and validation as part of completion.",
     "successCriteria": [
-      "New test function exists in operator_api::tests for chat fallback",
-      "cargo test --workspace passes with no failures",
+      "cargo clippy --workspace --all-targets --all-features -- -D warnings passes",
+      "cargo fmt --all -- --check passes",
+      "cargo test --workspace passes",
       "work is grounded in actual repository state",
       "completion is backed by executed checks or explicit blocker evidence"
     ],
@@ -16,7 +17,7 @@
       "escalationMode": "auto-repair"
     },
     "metadata": {
-      "originalGoal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern.",
+      "originalGoal": "Fix all CI failures on PR #13. Clippy fails with 'use of unwrap_or_else to construct default value'. Security audit fails on upstream deps (not actionable, but check if there's an audit.toml to ignore known vulns). Fix clippy, ensure cargo fmt --check and cargo test --workspace pass, push the fix.",
       "profileId": "engineering-foreman",
       "selectedWorkerId": "claude",
       "reviewWorkerId": "codex",
@@ -29,7 +30,7 @@
       "promptPolicyMode": "explicit"
     }
   },
-  "startedAt": "2026-03-17T06:44:58.706Z",
-  "maxRounds": 2,
+  "startedAt": "2026-03-18T10:20:00.081Z",
+  "maxRounds": 3,
   "concurrency": 4
 }

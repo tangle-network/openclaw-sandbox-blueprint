@@ -3,7 +3,7 @@
   "tracks": [
     {
       "id": "implement",
-      "goal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+      "goal": "Wire the on-chain job submission flow in the React control-plane UI. The Rust backend already implements create/start/stop/delete instance jobs (JOB_CREATE=0, JOB_START=1, JOB_STOP=2, JOB_DELETE=3) with ABI types defined in lib.rs. The UI in App.tsx has lifecycle buttons but they do NOT submit on-chain transactions. Wire them: (1) Import and use the blueprint-ui hooks (useSubmitJob or equivalent wagmi contract write) to submit lifecycle jobs from the UI buttons. (2) Encode the ABI parameters correctly — CreateInstanceRequest for create (name, templatePackId, clawVariant, configJson, uiAuthMode), InstanceIdRequest for start/stop/delete (instanceId as bytes). (3) Add proper transaction pending/success/error states to the buttons. (4) Add a confirmation dialog before destructive actions (stop and delete) per CLAUDE.md quality gates. (5) After successful on-chain job submission, refresh instance state from the operator API. Make sure the existing UI architecture, component patterns, and styling conventions are followed exactly. Run cargo test --workspace and pnpm run build:embedded to verify nothing breaks. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
       "capability": "code",
       "metadata": {
         "workerId": "claude"
@@ -14,7 +14,8 @@
     }
   ],
   "risks": [
-    "Resolve low finding: Test does not assert fallback message content",
-    "Resolve low finding: No negative case for missing text part"
+    "Resolve low finding: InstanceIdRequest ABI encoding uses bare parameter, not sol struct tuple",
+    "Resolve low finding: Create flow encodes 3 bare strings, not CreateInstanceRequest struct tuple",
+    "Resolve low finding: No explicit success toast for lifecycle jobs (start/stop/delete)"
   ]
 }

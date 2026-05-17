@@ -1,37 +1,37 @@
 [
   {
-    "at": "2026-03-17T06:44:58.706Z",
+    "at": "2026-03-17T15:30:12.340Z",
     "kind": "task.started",
     "summary": "task engineering-openclaw-sandbox-blueprint started",
     "metadata": {
-      "goal": "Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+      "goal": "Wire the on-chain job submission flow in the React control-plane UI. The Rust backend already implements create/start/stop/delete instance jobs (JOB_CREATE=0, JOB_START=1, JOB_STOP=2, JOB_DELETE=3) with ABI types defined in lib.rs. The UI in App.tsx has lifecycle buttons but they do NOT submit on-chain transactions. Wire them: (1) Import and use the blueprint-ui hooks (useSubmitJob or equivalent wagmi contract write) to submit lifecycle jobs from the UI buttons. (2) Encode the ABI parameters correctly — CreateInstanceRequest for create (name, templatePackId, clawVariant, configJson, uiAuthMode), InstanceIdRequest for start/stop/delete (instanceId as bytes). (3) Add proper transaction pending/success/error states to the buttons. (4) Add a confirmation dialog before destructive actions (stop and delete) per CLAUDE.md quality gates. (5) After successful on-chain job submission, refresh instance state from the operator API. Make sure the existing UI architecture, component patterns, and styling conventions are followed exactly. Run cargo test --workspace and pnpm run build:embedded to verify nothing breaks. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
       "environment": "code"
     }
   },
   {
-    "at": "2026-03-17T06:44:58.719Z",
+    "at": "2026-03-17T15:30:12.352Z",
     "kind": "context.built",
     "summary": "round 1 context built"
   },
   {
-    "at": "2026-03-17T06:44:58.719Z",
+    "at": "2026-03-17T15:30:12.352Z",
     "kind": "plan.created",
     "summary": "round 1 plan created with 1 track(s)"
   },
   {
-    "at": "2026-03-17T06:44:58.719Z",
+    "at": "2026-03-17T15:30:12.352Z",
     "kind": "track.started",
     "trackId": "implement",
     "summary": "track implement started"
   },
   {
-    "at": "2026-03-17T06:49:45.538Z",
+    "at": "2026-03-17T15:36:19.669Z",
     "kind": "track.completed",
     "trackId": "implement",
     "summary": "track implement completed"
   },
   {
-    "at": "2026-03-17T06:50:40.023Z",
+    "at": "2026-03-17T15:39:20.636Z",
     "kind": "validation.completed",
     "summary": "round 1 validation warn",
     "metadata": {
@@ -39,12 +39,12 @@
     }
   },
   {
-    "at": "2026-03-17T06:50:40.024Z",
+    "at": "2026-03-17T15:39:20.637Z",
     "kind": "repair.created",
     "summary": "round 1 repair created"
   },
   {
-    "at": "2026-03-17T06:50:40.024Z",
+    "at": "2026-03-17T15:39:20.638Z",
     "kind": "decision.made",
     "summary": "round 1 decision: running",
     "metadata": {
@@ -52,29 +52,29 @@
     }
   },
   {
-    "at": "2026-03-17T06:50:40.034Z",
+    "at": "2026-03-17T15:39:20.654Z",
     "kind": "context.built",
     "summary": "round 2 context built"
   },
   {
-    "at": "2026-03-17T06:50:40.034Z",
+    "at": "2026-03-17T15:39:20.654Z",
     "kind": "plan.created",
     "summary": "round 2 plan created with 1 track(s)"
   },
   {
-    "at": "2026-03-17T06:50:40.034Z",
+    "at": "2026-03-17T15:39:20.654Z",
     "kind": "track.started",
     "trackId": "implement",
     "summary": "track implement started"
   },
   {
-    "at": "2026-03-17T06:54:16.815Z",
+    "at": "2026-03-17T15:41:16.794Z",
     "kind": "track.completed",
     "trackId": "implement",
     "summary": "track implement completed"
   },
   {
-    "at": "2026-03-17T06:55:10.286Z",
+    "at": "2026-03-17T15:42:57.552Z",
     "kind": "validation.completed",
     "summary": "round 2 validation pass",
     "metadata": {
@@ -82,7 +82,7 @@
     }
   },
   {
-    "at": "2026-03-17T06:55:10.286Z",
+    "at": "2026-03-17T15:42:57.552Z",
     "kind": "decision.made",
     "summary": "round 2 decision: completed",
     "metadata": {

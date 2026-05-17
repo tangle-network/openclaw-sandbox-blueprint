@@ -1,21 +1,16 @@
 {
   "target": "/home/drew/code/openclaw-sandbox-blueprint",
   "facts": [
-    "latest goal: Add a unit test for the parse_terminal_request function in operator_api.rs that verifies: (1) valid JSON body returns the parsed request, (2) missing content-type header returns default CreateTerminalRequest, (3) malformed JSON body returns an error. Add the test to the existing operator_api::tests module.",
-    "expanded goal: Add a unit test for the parse_terminal_request function in operator_api.rs that verifies: (1) valid JSON body returns the parsed request, (2) missing content-type header returns default CreateTerminalRequest, (3) malformed JSON body returns an error. Add the test to the existing operator_api::tests module. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
-    "criterion: New test function exists in operator_api::tests",
-    "criterion: cargo test --workspace passes with no failures",
-    "criterion: work is grounded in actual repository state",
-    "criterion: completion is backed by executed checks or explicit blocker evidence",
-    "check: cargo test",
-    "check: cargo check",
-    "check: cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace",
-    "latest goal: Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern.",
-    "expanded goal: Add a unit test to operator_api::tests that verifies the chat fallback path: when no OPENCLAW_VARIANT_OPENCLAW_CHAT_COMMAND is set, sending a message should return an informative assistant response (not a 400 error). Use the existing axum oneshot test pattern. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
-    "criterion: New test function exists in operator_api::tests for chat fallback"
+    "check-command: cargo fmt --check",
+    "check-command: cargo clippy --workspace",
+    "check-command: cargo test --workspace",
+    "check-command: cargo fmt --all -- --check",
+    "check-command: cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "check-command: cd /home/drew/code/openclaw-sandbox-blueprint && ./scripts/ci/run-docker-integration-tests.sh",
+    "check-command: cd /home/drew/code/openclaw-sandbox-blueprint && cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "check-command: cd /home/drew/code/openclaw-sandbox-blueprint && cargo fmt --all -- --check",
+    "check-command: cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace"
   ],
   "invariants": [],
-  "failureModes": [
-    "Missing review output"
-  ]
+  "failureModes": []
 }

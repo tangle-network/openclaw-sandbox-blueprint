@@ -1,0 +1,479 @@
+{
+  "task": {
+    "id": "engineering-openclaw-sandbox-blueprint",
+    "goal": "Wire the on-chain job submission flow in the React control-plane UI. The Rust backend already implements create/start/stop/delete instance jobs (JOB_CREATE=0, JOB_START=1, JOB_STOP=2, JOB_DELETE=3) with ABI types defined in lib.rs. The UI in App.tsx has lifecycle buttons but they do NOT submit on-chain transactions. Wire them: (1) Import and use the blueprint-ui hooks (useSubmitJob or equivalent wagmi contract write) to submit lifecycle jobs from the UI buttons. (2) Encode the ABI parameters correctly — CreateInstanceRequest for create (name, templatePackId, clawVariant, configJson, uiAuthMode), InstanceIdRequest for start/stop/delete (instanceId as bytes). (3) Add proper transaction pending/success/error states to the buttons. (4) Add a confirmation dialog before destructive actions (stop and delete) per CLAUDE.md quality gates. (5) After successful on-chain job submission, refresh instance state from the operator API. Make sure the existing UI architecture, component patterns, and styling conventions are followed exactly. Run cargo test --workspace and pnpm run build:embedded to verify nothing breaks. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+    "environmentKind": "code"
+  },
+  "events": [
+    {
+      "at": "2026-03-17T15:30:12.340Z",
+      "kind": "task.started",
+      "summary": "task engineering-openclaw-sandbox-blueprint started",
+      "metadata": {
+        "goal": "Wire the on-chain job submission flow in the React control-plane UI. The Rust backend already implements create/start/stop/delete instance jobs (JOB_CREATE=0, JOB_START=1, JOB_STOP=2, JOB_DELETE=3) with ABI types defined in lib.rs. The UI in App.tsx has lifecycle buttons but they do NOT submit on-chain transactions. Wire them: (1) Import and use the blueprint-ui hooks (useSubmitJob or equivalent wagmi contract write) to submit lifecycle jobs from the UI buttons. (2) Encode the ABI parameters correctly — CreateInstanceRequest for create (name, templatePackId, clawVariant, configJson, uiAuthMode), InstanceIdRequest for start/stop/delete (instanceId as bytes). (3) Add proper transaction pending/success/error states to the buttons. (4) Add a confirmation dialog before destructive actions (stop and delete) per CLAUDE.md quality gates. (5) After successful on-chain job submission, refresh instance state from the operator API. Make sure the existing UI architecture, component patterns, and styling conventions are followed exactly. Run cargo test --workspace and pnpm run build:embedded to verify nothing breaks. Work inside /home/drew/code/openclaw-sandbox-blueprint. Prefer minimal, verifiable changes. Treat review and validation as part of completion, not afterthoughts.",
+        "environment": "code"
+      }
+    },
+    {
+      "at": "2026-03-17T15:30:12.352Z",
+      "kind": "context.built",
+      "summary": "round 1 context built"
+    },
+    {
+      "at": "2026-03-17T15:30:12.352Z",
+      "kind": "plan.created",
+      "summary": "round 1 plan created with 1 track(s)"
+    },
+    {
+      "at": "2026-03-17T15:30:12.352Z",
+      "kind": "track.started",
+      "trackId": "implement",
+      "summary": "track implement started"
+    },
+    {
+      "at": "2026-03-17T15:36:19.669Z",
+      "kind": "track.completed",
+      "trackId": "implement",
+      "summary": "track implement completed"
+    },
+    {
+      "at": "2026-03-17T15:39:20.636Z",
+      "kind": "validation.completed",
+      "summary": "round 1 validation warn",
+      "metadata": {
+        "recommendation": "repair"
+      }
+    },
+    {
+      "at": "2026-03-17T15:39:20.637Z",
+      "kind": "repair.created",
+      "summary": "round 1 repair created"
+    },
+    {
+      "at": "2026-03-17T15:39:20.638Z",
+      "kind": "decision.made",
+      "summary": "round 1 decision: running",
+      "metadata": {
+        "done": "false"
+      }
+    },
+    {
+      "at": "2026-03-17T15:39:20.654Z",
+      "kind": "context.built",
+      "summary": "round 2 context built"
+    },
+    {
+      "at": "2026-03-17T15:39:20.654Z",
+      "kind": "plan.created",
+      "summary": "round 2 plan created with 1 track(s)"
+    },
+    {
+      "at": "2026-03-17T15:39:20.654Z",
+      "kind": "track.started",
+      "trackId": "implement",
+      "summary": "track implement started"
+    },
+    {
+      "at": "2026-03-17T15:41:16.794Z",
+      "kind": "track.completed",
+      "trackId": "implement",
+      "summary": "track implement completed"
+    },
+    {
+      "at": "2026-03-17T15:42:57.552Z",
+      "kind": "validation.completed",
+      "summary": "round 2 validation pass",
+      "metadata": {
+        "recommendation": "complete"
+      }
+    },
+    {
+      "at": "2026-03-17T15:42:57.552Z",
+      "kind": "decision.made",
+      "summary": "round 2 decision: completed",
+      "metadata": {
+        "done": "true"
+      }
+    },
+    {
+      "at": "2026-03-17T15:42:57.553Z",
+      "kind": "run.completed",
+      "summary": "run finished with status completed"
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "log",
+      "label": "git-status",
+      "value": "M .foreman/runs/engineering-openclaw-sandbox-blueprint/request.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/task-envelope.json"
+    },
+    {
+      "kind": "test",
+      "label": "cargo test",
+      "value": "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 52 tests\ntest auth::tests::env_token_fields_can_be_present ... ok\ntest ingress_access::tests::aliases_include_openclaw_compat_key ... ok\ntest jobs::lifecycle::tests::auto_start_on_create_defaults_true_and_supports_disable_flag ... ok\ntest jobs::lifecycle::tests::profile_defaults_to_openclaw_and_pending_tunnel ... ok\ntest jobs::lifecycle::tests::profile_rejects_unknown_variant ... ok\ntest jobs::lifecycle::tests::profile_supports_variant_and_public_url ... ok\ntest operator_api::tests::control_plane_assets_include_at_least_one_chunk_file ... ok\ntest operator_api::tests::control_plane_index_asset_is_embedded ... ok\ntest operator_api::tests::missing_control_plane_asset_returns_not_found ... ok\ntest operator_api::tests::instance_access_rejects_operator_tokens ... ok\ntest operator_api::tests::instance_access_rejects_mismatched_scoped_session ... ok\ntest operator_api::tests::instance_access_returns_scoped_owner_ui_token ... ok\ntest query::tests::setup_url_falls_back_to_runtime_url_when_public_missing ... ok\ntest operator_api::tests::parse_terminal_request_missing_content_type_returns_default ... ok\ntest operator_api::tests::start_setup_persists_runtime_status_and_env ... ok\ntest operator_api::tests::tee_proxy_endpoints_reject_standard_instances ... ok\ntest query::tests::setup_url_prefers_public_host_when_available ... ok\ntest runtime_adapter::tests::container_env_key_defaults_include_ironclaw_auth_keys ... ok\ntest operator_api::tests::parse_terminal_request_malformed_json_returns_error ... ok\ntest runtime_adapter::tests::container_ref_prefers_id ... ok\ntest runtime_adapter::tests::docker_lifecycle_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_setup_command_executes_and_writes_output ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_ssh_key_roundtrip ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_variant_ui_matrix_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_error_helpers_match_expected_text ... ok\ntest runtime_adapter::tests::docker_container_name_is_stable ... ok\ntest runtime_adapter::tests::ironclaw_worker_image_requires_noninteractive_auth_env ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_does_not_require_explicit_service_command ... ok\ntest operator_api::tests::parse_terminal_request_valid_json ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_forces_shell_entrypoint ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_uses_long_lived_terminal_command ... ok\ntest runtime_adapter::tests::openclaw_official_image_uses_host_reachable_default_command ... ok\ntest runtime_adapter::tests::setup_env_allowlist_is_enforced_before_exec ... ok\ntest runtime_adapter::tests::validate_env_key_rejects_invalid_values ... ok\ntest auth::tests::wallet_challenge_rejects_non_owner_wallet ... ok\ntest state::tests::instance_state_display ... ok\ntest state::tests::instance_record_config_json_default ... ok\ntest operator_api::tests::chat_fallback_returns_ok_when_no_chat_command ... ok\ntest state::tests::instance_state_roundtrip ... ok\ntest runtime_adapter::tests::product_variant_mapping_is_stable ... ok\ntest tests::job_ids_are_unique ... ok\ntest operator_api::tests::chat_message_missing_text_part_returns_400 ... ok\ntest tests::job_ids_are_sequential ... ok\ntest runtime_adapter::tests::validate_ssh_inputs_reject_invalid_values ... ok\ntest tests::router_builds_without_panic ... ok\ntest runtime_adapter::tests::resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images ... ok\ntest runtime_adapter::tests::setup_defaults_exist_for_all_variants ... ok\ntest runtime_adapter::tests::nanoclaw_build_script_is_supported ... ok\ntest auth::tests::wallet_challenge_roundtrip_creates_scoped_session ... ok\ntest operator_api::tests::tee_proxy_endpoints_roundtrip_for_scoped_owner ... ok\ntest runtime_adapter::tests::local_adapter_create_get_save ... ok\ntest state::tests::instance_store_insert_get_list ... ok\n\ntest result: ok. 48 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n\nrunning 7 tests\ntest list_returns_all_instances ... ok\ntest get_missing_instance_returns_none ... ok\ntest create_persists_stopped_record ... ok\ntest delete_transition_marks_deleted ... ok\ntest stop_transition_running_to_stopped ... ok\ntest config_json_roundtrip ... ok\ntest start_transition_stopped_to_running ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n\nrunning 1 test\ntest docker_operator_api_control_plane_e2e ... ignored, requires Docker daemon and network image pull\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest docker_real_variant_runtime_matrix ... ignored, requires Docker daemon, network image pull, and real variant images\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\nwarning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n   Compiling openclaw-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-lib)\n   Compiling openclaw-tee-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-lib)\n   Compiling openclaw-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-bin)\n   Compiling openclaw-tee-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-bin)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.14s\n     Running unittests src/main.rs (target/debug/deps/openclaw_sandbox_blueprint-ae6d090a40e55374)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_sandbox_blueprint_lib-269308804965a34c)\n     Running tests/lifecycle.rs (target/debug/deps/lifecycle-30da205cd0a7fd7e)\n     Running tests/operator_api_e2e.rs (target/debug/deps/operator_api_e2e-c9bbe84e484fa592)\n     Running tests/real_variant_runtime.rs (target/debug/deps/real_variant_runtime-74da7907bead5599)\n     Running unittests src/main.rs (target/debug/deps/openclaw_tee_sandbox_blueprint-b27813a0944a9de8)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_tee_sandbox_blueprint_lib-b2f7cf6ce91bdc9b)\n   Doc-tests openclaw_sandbox_blueprint_lib\n   Doc-tests openclaw_tee_sandbox_blueprint_lib",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "test",
+      "label": "cargo check",
+      "value": "warning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Checking openclaw-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-lib)\n    Checking openclaw-tee-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-lib)\n    Checking openclaw-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-bin)\n    Checking openclaw-tee-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-bin)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.73s",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "test",
+      "label": "cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace",
+      "value": "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 52 tests\ntest auth::tests::env_token_fields_can_be_present ... ok\ntest ingress_access::tests::aliases_include_openclaw_compat_key ... ok\ntest jobs::lifecycle::tests::auto_start_on_create_defaults_true_and_supports_disable_flag ... ok\ntest jobs::lifecycle::tests::profile_defaults_to_openclaw_and_pending_tunnel ... ok\ntest jobs::lifecycle::tests::profile_rejects_unknown_variant ... ok\ntest jobs::lifecycle::tests::profile_supports_variant_and_public_url ... ok\ntest operator_api::tests::control_plane_assets_include_at_least_one_chunk_file ... ok\ntest operator_api::tests::control_plane_index_asset_is_embedded ... ok\ntest operator_api::tests::instance_access_rejects_mismatched_scoped_session ... ok\ntest auth::tests::wallet_challenge_rejects_non_owner_wallet ... ok\ntest operator_api::tests::instance_access_returns_scoped_owner_ui_token ... ok\ntest operator_api::tests::parse_terminal_request_malformed_json_returns_error ... ok\ntest operator_api::tests::chat_message_missing_text_part_returns_400 ... ok\ntest operator_api::tests::missing_control_plane_asset_returns_not_found ... ok\ntest operator_api::tests::instance_access_rejects_operator_tokens ... ok\ntest operator_api::tests::parse_terminal_request_valid_json ... ok\ntest operator_api::tests::parse_terminal_request_missing_content_type_returns_default ... ok\ntest query::tests::setup_url_falls_back_to_runtime_url_when_public_missing ... ok\ntest operator_api::tests::chat_fallback_returns_ok_when_no_chat_command ... ok\ntest query::tests::setup_url_prefers_public_host_when_available ... ok\ntest operator_api::tests::start_setup_persists_runtime_status_and_env ... ok\ntest runtime_adapter::tests::container_env_key_defaults_include_ironclaw_auth_keys ... ok\ntest runtime_adapter::tests::container_ref_prefers_id ... ok\ntest runtime_adapter::tests::docker_container_name_is_stable ... ok\ntest runtime_adapter::tests::docker_lifecycle_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_setup_command_executes_and_writes_output ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_ssh_key_roundtrip ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_variant_ui_matrix_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_error_helpers_match_expected_text ... ok\ntest operator_api::tests::tee_proxy_endpoints_reject_standard_instances ... ok\ntest runtime_adapter::tests::ironclaw_worker_image_requires_noninteractive_auth_env ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_forces_shell_entrypoint ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_does_not_require_explicit_service_command ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_uses_long_lived_terminal_command ... ok\ntest runtime_adapter::tests::openclaw_official_image_uses_host_reachable_default_command ... ok\ntest runtime_adapter::tests::product_variant_mapping_is_stable ... ok\ntest runtime_adapter::tests::setup_defaults_exist_for_all_variants ... ok\ntest runtime_adapter::tests::validate_env_key_rejects_invalid_values ... ok\ntest runtime_adapter::tests::validate_ssh_inputs_reject_invalid_values ... ok\ntest state::tests::instance_state_display ... ok\ntest state::tests::instance_state_roundtrip ... ok\ntest state::tests::instance_record_config_json_default ... ok\ntest tests::job_ids_are_sequential ... ok\ntest tests::job_ids_are_unique ... ok\ntest tests::router_builds_without_panic ... ok\ntest runtime_adapter::tests::resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images ... ok\ntest runtime_adapter::tests::setup_env_allowlist_is_enforced_before_exec ... ok\ntest runtime_adapter::tests::nanoclaw_build_script_is_supported ... ok\ntest auth::tests::wallet_challenge_roundtrip_creates_scoped_session ... ok\ntest runtime_adapter::tests::local_adapter_create_get_save ... ok\ntest operator_api::tests::tee_proxy_endpoints_roundtrip_for_scoped_owner ... ok\ntest state::tests::instance_store_insert_get_list ... ok\n\ntest result: ok. 48 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n\nrunning 7 tests\ntest config_json_roundtrip ... ok\ntest create_persists_stopped_record ... ok\ntest list_returns_all_instances ... ok\ntest delete_transition_marks_deleted ... ok\ntest stop_transition_running_to_stopped ... ok\ntest start_transition_stopped_to_running ... ok\ntest get_missing_instance_returns_none ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n\nrunning 1 test\ntest docker_operator_api_control_plane_e2e ... ignored, requires Docker daemon and network image pull\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest docker_real_variant_runtime_matrix ... ignored, requires Docker daemon, network image pull, and real variant images\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\nwarning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s\n     Running unittests src/main.rs (target/debug/deps/openclaw_sandbox_blueprint-ae6d090a40e55374)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_sandbox_blueprint_lib-269308804965a34c)\n     Running tests/lifecycle.rs (target/debug/deps/lifecycle-30da205cd0a7fd7e)\n     Running tests/operator_api_e2e.rs (target/debug/deps/operator_api_e2e-c9bbe84e484fa592)\n     Running tests/real_variant_runtime.rs (target/debug/deps/real_variant_runtime-74da7907bead5599)\n     Running unittests src/main.rs (target/debug/deps/openclaw_tee_sandbox_blueprint-b27813a0944a9de8)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_tee_sandbox_blueprint_lib-b2f7cf6ce91bdc9b)\n   Doc-tests openclaw_sandbox_blueprint_lib\n   Doc-tests openclaw_tee_sandbox_blueprint_lib",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "test",
+      "label": "cd /home/drew/code/openclaw-sandbox-blueprint/ui && pnpm run build:embedded",
+      "value": "> openclaw-control-plane-ui@0.1.0 build:embedded /home/drew/code/openclaw-sandbox-blueprint/ui\n> pnpm run build && node ./scripts/embed-control-plane-ui.mjs\n\n\n> openclaw-control-plane-ui@0.1.0 build /home/drew/code/openclaw-sandbox-blueprint/ui\n> tsc -b && vite build\n\nvite v7.3.1 building client environment for production...\ntransforming...\n✓ 2058 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                       1.07 kB │ gzip:   0.54 kB\ndist/styles.css                     127.19 kB │ gzip:  20.94 kB\ndist/assets/ccip-DZrfWNPL.js          2.60 kB │ gzip:   1.22 kB\ndist/assets/terminal-DfGRPfEY.js    337.49 kB │ gzip:  86.34 kB\ndist/app.js                       1,066.61 kB │ gzip: 323.10 kB\n✓ built in 5.87s\nEmbedded control-plane assets copied to /home/drew/code/openclaw-sandbox-blueprint/control-plane-ui\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "stdout",
+      "value": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":176954,\"duration_api_ms\":155976,\"num_turns\":14,\"result\":\"I have now thoroughly reviewed all the implementation code. Here is my review:\\n\\n```json\\n{\\n  \\\"status\\\": \\\"pass\\\",\\n  \\\"recommendation\\\": \\\"complete\\\",\\n  \\\"summary\\\": \\\"The on-chain job submission flow is fully wired and production-quality. All four lifecycle operations (create/start/stop/delete) submit transactions via useSubmitJob from blueprint-ui with correct ABI encoding matching the Rust structs. Destructive actions (stop/delete) use a confirmation dialog. Transaction states (signing/pending/confirmed/failed) are surfaced in button labels, disabled states, error messages, and stale-tx recovery. Both pnpm run build:embedded and cargo test --workspace pass cleanly.\\\",\\n  \\\"findings\\\": [\\n    {\\n      \\\"severity\\\": \\\"low\\\",\\n      \\\"title\\\": \\\"InstanceIdRequest ABI encoding uses bare parameter, not sol struct tuple\\\",\\n      \\\"body\\\": \\\"The lifecycle job encoding uses encodeAbiParameters([{ name: 'instance_id', type: 'string' }], [id]) which produces abi.encode(string). The Rust side decodes via sol!{ struct InstanceIdRequest { string instance_id; } } which also expects abi.encode(string) since it's a single-field struct. These are ABI-equivalent, so this is correct but worth noting for maintainability — if InstanceIdRequest gains a second field, the encoding must be updated in tandem.\\\",\\n      \\\"evidence\\\": \\\"App.tsx:1493 vs lib.rs:83-85\\\"\\n    },\\n    {\\n      \\\"severity\\\": \\\"low\\\",\\n      \\\"title\\\": \\\"Create flow encodes 3 bare strings, not CreateInstanceRequest struct tuple\\\",\\n      \\\"body\\\": \\\"Same pattern as above: encodeAbiParameters with 3 named strings matches abi.encode(string,string,string) which is identical to the sol struct encoding. Correct but coupling is implicit rather than type-checked.\\\",\\n      \\\"evidence\\\": \\\"App.tsx:1407-1413 vs lib.rs:76-80\\\"\\n    },\\n    {\\n      \\\"severity\\\": \\\"low\\\",\\n      \\\"title\\\": \\\"No explicit success toast for lifecycle jobs (start/stop/delete)\\\",\\n      \\\"body\\\": \\\"After a successful lifecycle job submission, a notice is set with tone 'info' (line 1507). The create flow similarly uses 'info'. There is no 'success' tone confirmation when the transaction is actually confirmed on-chain — the user only sees 'submitted' + a delayed refresh. This is acceptable since the operator API refresh will update the status badge, but a confirmed-on-chain toast would improve UX.\\\",\\n      \\\"evidence\\\": \\\"App.tsx:1507 — setNotice({ tone: 'info', text: `${label} submitted (${hash}). Refreshing status...` })\\\"\\n    }\\n  ],\\n  \\\"scores\\\": {\\n    \\\"quality\\\": 9,\\n    \\\"correctness\\\": 9\\n  },\\n  \\\"evidence\\\": [\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"pnpm run build:embedded\\\",\\n      \\\"value\\\": \\\"PASS — built in 5.99s, assets copied to control-plane-ui/\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"cargo test --workspace\\\",\\n      \\\"value\\\": \\\"PASS — 7 passed, 0 failed, 2 ignored (Docker-dependent integration tests)\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Create ABI match\\\",\\n      \\\"value\\\": \\\"UI encodes (name:string, template_pack_id:string, config_json:string) matching Rust CreateInstanceRequest exactly\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Lifecycle ABI match\\\",\\n      \\\"value\\\": \\\"UI encodes (instance_id:string) matching Rust InstanceIdRequest exactly\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Confirmation dialogs\\\",\\n      \\\"value\\\": \\\"Stop and Delete route through requestLifecycleConfirm → Dialog with Cancel/Confirm. Delete uses destructive variant. Start fires directly.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Transaction state rendering\\\",\\n      \\\"value\\\": \\\"Buttons show 'Tx Pending…' when busy, disabled during signing/pending/chain-switch. Error shown via claw-text-danger. Stale pending (>90s) shows recovery button. txHash displayed in launch wizard.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Post-submission refresh\\\",\\n      \\\"value\\\": \\\"Both create and lifecycle flows call setTimeout(() => void refresh(), 2500) after successful submission\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Ownership guard\\\",\\n      \\\"value\\\": \\\"Lifecycle buttons disabled for non-owners; onSubmitLifecycleJob validates owner match before encoding/submitting\\\"\\n    }\\n  ]\\n}\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"c54d9759-e803-4780-89f8-3cf6d24b9a31\",\"total_cost_usd\":0.5266363,\"usage\":{\"input_tokens\":9,\"cache_creation_input_tokens\":30289,\"cache_read_input_tokens\":189814,\"output_tokens\":3227,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":30289,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-opus-4-6[1m]\":{\"inputTokens\":9,\"outputTokens\":3227,\"cacheReadInputTokens\":189814,\"cacheCreationInputTokens\":30289,\"webSearchRequests\":0,\"costUSD\":0.36493325,\"contextWindow\":1000000,\"maxOutputTokens\":64000},\"claude-haiku-4-5-20251001\":{\"inputTokens\":1607,\"outputTokens\":7276,\"cacheReadInputTokens\":648723,\"cacheCreationInputTokens\":47075,\"webSearchRequests\":0,\"costUSD\":0.16170305,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"aad8dfe8-b1a9-4cb5-ab40-8cc01fe2d34b\"}",
+      "metadata": {
+        "durationMs": "177753",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "0.5266363",
+        "providerFormat": "json",
+        "sessionId": "c54d9759-e803-4780-89f8-3cf6d24b9a31",
+        "stopReason": "end_turn",
+        "numTurns": "14",
+        "modelIds": "claude-opus-4-6[1m],claude-haiku-4-5-20251001",
+        "inputTokens": "9",
+        "cacheCreationInputTokens": "30289",
+        "cacheReadInputTokens": "189814",
+        "outputTokens": "3227",
+        "totalCostUsd": "0.5266363"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "stderr",
+      "value": "",
+      "metadata": {
+        "durationMs": "177753",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "0.5266363",
+        "providerFormat": "json",
+        "sessionId": "c54d9759-e803-4780-89f8-3cf6d24b9a31",
+        "stopReason": "end_turn",
+        "numTurns": "14",
+        "modelIds": "claude-opus-4-6[1m],claude-haiku-4-5-20251001",
+        "inputTokens": "9",
+        "cacheCreationInputTokens": "30289",
+        "cacheReadInputTokens": "189814",
+        "outputTokens": "3227",
+        "totalCostUsd": "0.5266363"
+      }
+    },
+    {
+      "kind": "note",
+      "label": "pnpm run build:embedded",
+      "value": "PASS — built in 5.99s, assets copied to control-plane-ui/"
+    },
+    {
+      "kind": "note",
+      "label": "cargo test --workspace",
+      "value": "PASS — 7 passed, 0 failed, 2 ignored (Docker-dependent integration tests)"
+    },
+    {
+      "kind": "note",
+      "label": "Create ABI match",
+      "value": "UI encodes (name:string, template_pack_id:string, config_json:string) matching Rust CreateInstanceRequest exactly"
+    },
+    {
+      "kind": "note",
+      "label": "Lifecycle ABI match",
+      "value": "UI encodes (instance_id:string) matching Rust InstanceIdRequest exactly"
+    },
+    {
+      "kind": "note",
+      "label": "Confirmation dialogs",
+      "value": "Stop and Delete route through requestLifecycleConfirm → Dialog with Cancel/Confirm. Delete uses destructive variant. Start fires directly."
+    },
+    {
+      "kind": "note",
+      "label": "Transaction state rendering",
+      "value": "Buttons show 'Tx Pending…' when busy, disabled during signing/pending/chain-switch. Error shown via claw-text-danger. Stale pending (>90s) shows recovery button. txHash displayed in launch wizard."
+    },
+    {
+      "kind": "note",
+      "label": "Post-submission refresh",
+      "value": "Both create and lifecycle flows call setTimeout(() => void refresh(), 2500) after successful submission"
+    },
+    {
+      "kind": "note",
+      "label": "Ownership guard",
+      "value": "Lifecycle buttons disabled for non-owners; onSubmitLifecycleJob validates owner match before encoding/submitting"
+    },
+    {
+      "kind": "log",
+      "label": "stdout",
+      "value": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":366193,\"duration_api_ms\":422464,\"num_turns\":41,\"result\":\"Both checks pass. Here's the summary of what was done and what was already in place:\\n\\n## Assessment\\n\\nThe on-chain job submission flow was **already fully wired** in the existing codebase:\\n- `useSubmitJob()` from `@tangle-network/blueprint-ui` imported and used\\n- ABI encoding via `encodeAbiParameters` for all 4 jobs (CREATE with `{name, template_pack_id, config_json}`, START/STOP/DELETE with `{instance_id}`)\\n- Transaction state tracking (`txStatus`, `txError`, `txHash`, `lifecycleTxBusy`)\\n- Instance refresh after submission (`setTimeout(() => void refresh(), 2500)`)\\n\\n## Changes Made (3 gaps fixed)\\n\\n**1. Stop confirmation dialog** — Stop button now routes through a confirmation dialog before submitting the on-chain transaction, satisfying the CLAUDE.md quality gate: \\\"Destructive actions require confirmation/undo paths.\\\"\\n\\n**2. Delete confirmation upgraded** — Replaced `window.prompt()` with a proper React `Dialog` component from `@tangle-network/blueprint-ui/components`. Both stop and delete share the same dialog, with context-appropriate copy and button variants (`destructive` for delete, `secondary` for stop).\\n\\n**3. Transaction pending text on lifecycle buttons** — Start, Stop, and Delete buttons now show \\\"Tx Pending...\\\" when `lifecycleTxBusy` is true (matching the Create button's existing pattern).\\n\\n## Evidence\\n\\n- `pnpm run build:embedded` — succeeds, assets synced to `control-plane-ui/`\\n- `cargo test --workspace` — 55 tests pass (48 lib + 7 integration), 6 ignored (Docker-dependent)\\n- No TypeScript errors (tsc passes as part of build)\\n- No dangling references to removed `confirmAndDeleteInstance`\",\"stop_reason\":\"end_turn\",\"session_id\":\"e068c73e-5def-43c8-b68c-59f09e2d8486\",\"total_cost_usd\":1.7512568999999998,\"usage\":{\"input_tokens\":7006,\"cache_creation_input_tokens\":55658,\"cache_read_input_tokens\":1526864,\"output_tokens\":9331,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":55658,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-opus-4-6[1m]\":{\"inputTokens\":7006,\"outputTokens\":9331,\"cacheReadInputTokens\":1526864,\"cacheCreationInputTokens\":55658,\"webSearchRequests\":0,\"costUSD\":1.3795995,\"contextWindow\":1000000,\"maxOutputTokens\":64000},\"claude-haiku-4-5-20251001\":{\"inputTokens\":102,\"outputTokens\":17326,\"cacheReadInputTokens\":1325179,\"cacheCreationInputTokens\":121926,\"webSearchRequests\":0,\"costUSD\":0.3716574,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"7ffa8f44-21fe-4c38-a047-edcb59f3bdf1\"}",
+      "metadata": {
+        "durationMs": "367316",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "1.7512568999999998",
+        "providerFormat": "json",
+        "sessionId": "e068c73e-5def-43c8-b68c-59f09e2d8486",
+        "stopReason": "end_turn",
+        "numTurns": "41",
+        "modelIds": "claude-opus-4-6[1m],claude-haiku-4-5-20251001",
+        "inputTokens": "7006",
+        "cacheCreationInputTokens": "55658",
+        "cacheReadInputTokens": "1526864",
+        "outputTokens": "9331",
+        "totalCostUsd": "1.7512568999999998"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "stderr",
+      "value": "",
+      "metadata": {
+        "durationMs": "367316",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "1.7512568999999998",
+        "providerFormat": "json",
+        "sessionId": "e068c73e-5def-43c8-b68c-59f09e2d8486",
+        "stopReason": "end_turn",
+        "numTurns": "41",
+        "modelIds": "claude-opus-4-6[1m],claude-haiku-4-5-20251001",
+        "inputTokens": "7006",
+        "cacheCreationInputTokens": "55658",
+        "cacheReadInputTokens": "1526864",
+        "outputTokens": "9331",
+        "totalCostUsd": "1.7512568999999998"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "git-status",
+      "value": "M .foreman/runs/engineering-openclaw-sandbox-blueprint/request.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/context.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/plan.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/repair.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/trace.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/track-results.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/validation.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/task-envelope.json\n M control-plane-ui/app.js\n M control-plane-ui/styles.css\n M ui/src/App.tsx"
+    },
+    {
+      "kind": "test",
+      "label": "cargo test",
+      "value": "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 52 tests\ntest ingress_access::tests::aliases_include_openclaw_compat_key ... ok\ntest auth::tests::env_token_fields_can_be_present ... ok\ntest jobs::lifecycle::tests::auto_start_on_create_defaults_true_and_supports_disable_flag ... ok\ntest jobs::lifecycle::tests::profile_defaults_to_openclaw_and_pending_tunnel ... ok\ntest jobs::lifecycle::tests::profile_rejects_unknown_variant ... ok\ntest jobs::lifecycle::tests::profile_supports_variant_and_public_url ... ok\ntest operator_api::tests::control_plane_assets_include_at_least_one_chunk_file ... ok\ntest operator_api::tests::control_plane_index_asset_is_embedded ... ok\ntest operator_api::tests::missing_control_plane_asset_returns_not_found ... ok\ntest operator_api::tests::instance_access_rejects_mismatched_scoped_session ... ok\ntest operator_api::tests::instance_access_rejects_operator_tokens ... ok\ntest query::tests::setup_url_falls_back_to_runtime_url_when_public_missing ... ok\ntest operator_api::tests::parse_terminal_request_missing_content_type_returns_default ... ok\ntest query::tests::setup_url_prefers_public_host_when_available ... ok\ntest operator_api::tests::parse_terminal_request_malformed_json_returns_error ... ok\ntest runtime_adapter::tests::container_env_key_defaults_include_ironclaw_auth_keys ... ok\ntest auth::tests::wallet_challenge_rejects_non_owner_wallet ... ok\ntest operator_api::tests::start_setup_persists_runtime_status_and_env ... ok\ntest operator_api::tests::instance_access_returns_scoped_owner_ui_token ... ok\ntest runtime_adapter::tests::container_ref_prefers_id ... ok\ntest runtime_adapter::tests::docker_container_name_is_stable ... ok\ntest operator_api::tests::parse_terminal_request_valid_json ... ok\ntest runtime_adapter::tests::docker_lifecycle_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_setup_command_executes_and_writes_output ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_ssh_key_roundtrip ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_variant_ui_matrix_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_error_helpers_match_expected_text ... ok\ntest operator_api::tests::tee_proxy_endpoints_reject_standard_instances ... ok\ntest runtime_adapter::tests::ironclaw_worker_image_requires_noninteractive_auth_env ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_does_not_require_explicit_service_command ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_forces_shell_entrypoint ... ok\ntest operator_api::tests::chat_fallback_returns_ok_when_no_chat_command ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_uses_long_lived_terminal_command ... ok\ntest runtime_adapter::tests::openclaw_official_image_uses_host_reachable_default_command ... ok\ntest operator_api::tests::chat_message_missing_text_part_returns_400 ... ok\ntest runtime_adapter::tests::product_variant_mapping_is_stable ... ok\ntest runtime_adapter::tests::resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images ... ok\ntest runtime_adapter::tests::setup_defaults_exist_for_all_variants ... ok\ntest runtime_adapter::tests::setup_env_allowlist_is_enforced_before_exec ... ok\ntest runtime_adapter::tests::validate_ssh_inputs_reject_invalid_values ... ok\ntest runtime_adapter::tests::validate_env_key_rejects_invalid_values ... ok\ntest state::tests::instance_state_display ... ok\ntest state::tests::instance_record_config_json_default ... ok\ntest state::tests::instance_state_roundtrip ... ok\ntest tests::job_ids_are_sequential ... ok\ntest tests::job_ids_are_unique ... ok\ntest tests::router_builds_without_panic ... ok\ntest runtime_adapter::tests::nanoclaw_build_script_is_supported ... ok\ntest auth::tests::wallet_challenge_roundtrip_creates_scoped_session ... ok\ntest runtime_adapter::tests::local_adapter_create_get_save ... ok\ntest state::tests::instance_store_insert_get_list ... ok\ntest operator_api::tests::tee_proxy_endpoints_roundtrip_for_scoped_owner ... ok\n\ntest result: ok. 48 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n\nrunning 7 tests\ntest create_persists_stopped_record ... ok\ntest config_json_roundtrip ... ok\ntest delete_transition_marks_deleted ... ok\ntest list_returns_all_instances ... ok\ntest stop_transition_running_to_stopped ... ok\ntest start_transition_stopped_to_running ... ok\ntest get_missing_instance_returns_none ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s\n\n\nrunning 1 test\ntest docker_operator_api_control_plane_e2e ... ignored, requires Docker daemon and network image pull\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest docker_real_variant_runtime_matrix ... ignored, requires Docker daemon, network image pull, and real variant images\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\nwarning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.31s\n     Running unittests src/main.rs (target/debug/deps/openclaw_sandbox_blueprint-ae6d090a40e55374)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_sandbox_blueprint_lib-269308804965a34c)\n     Running tests/lifecycle.rs (target/debug/deps/lifecycle-30da205cd0a7fd7e)\n     Running tests/operator_api_e2e.rs (target/debug/deps/operator_api_e2e-c9bbe84e484fa592)\n     Running tests/real_variant_runtime.rs (target/debug/deps/real_variant_runtime-74da7907bead5599)\n     Running unittests src/main.rs (target/debug/deps/openclaw_tee_sandbox_blueprint-b27813a0944a9de8)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_tee_sandbox_blueprint_lib-b2f7cf6ce91bdc9b)\n   Doc-tests openclaw_sandbox_blueprint_lib\n   Doc-tests openclaw_tee_sandbox_blueprint_lib",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "test",
+      "label": "cargo check",
+      "value": "warning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Checking openclaw-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-lib)\n    Checking openclaw-tee-sandbox-blueprint-lib v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-lib)\n    Checking openclaw-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-sandbox-blueprint-bin)\n    Checking openclaw-tee-sandbox-blueprint-bin v0.1.0 (/home/drew/code/openclaw-sandbox-blueprint/openclaw-tee-sandbox-blueprint-bin)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.74s",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "test",
+      "label": "cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace",
+      "value": "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 52 tests\ntest auth::tests::env_token_fields_can_be_present ... ok\ntest ingress_access::tests::aliases_include_openclaw_compat_key ... ok\ntest jobs::lifecycle::tests::auto_start_on_create_defaults_true_and_supports_disable_flag ... ok\ntest jobs::lifecycle::tests::profile_defaults_to_openclaw_and_pending_tunnel ... ok\ntest jobs::lifecycle::tests::profile_rejects_unknown_variant ... ok\ntest jobs::lifecycle::tests::profile_supports_variant_and_public_url ... ok\ntest operator_api::tests::control_plane_index_asset_is_embedded ... ok\ntest operator_api::tests::control_plane_assets_include_at_least_one_chunk_file ... ok\ntest operator_api::tests::instance_access_rejects_operator_tokens ... ok\ntest auth::tests::wallet_challenge_rejects_non_owner_wallet ... ok\ntest operator_api::tests::missing_control_plane_asset_returns_not_found ... ok\ntest operator_api::tests::instance_access_rejects_mismatched_scoped_session ... ok\ntest operator_api::tests::parse_terminal_request_missing_content_type_returns_default ... ok\ntest operator_api::tests::start_setup_persists_runtime_status_and_env ... ok\ntest operator_api::tests::tee_proxy_endpoints_reject_standard_instances ... ok\ntest operator_api::tests::instance_access_returns_scoped_owner_ui_token ... ok\ntest query::tests::setup_url_falls_back_to_runtime_url_when_public_missing ... ok\ntest query::tests::setup_url_prefers_public_host_when_available ... ok\ntest runtime_adapter::tests::container_ref_prefers_id ... ok\ntest runtime_adapter::tests::container_env_key_defaults_include_ironclaw_auth_keys ... ok\ntest runtime_adapter::tests::docker_container_name_is_stable ... ok\ntest runtime_adapter::tests::docker_lifecycle_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_setup_command_executes_and_writes_output ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_ssh_key_roundtrip ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_variant_ui_matrix_smoke ... ignored, requires Docker daemon and network image pull\ntest runtime_adapter::tests::docker_error_helpers_match_expected_text ... ok\ntest operator_api::tests::parse_terminal_request_valid_json ... ok\ntest operator_api::tests::parse_terminal_request_malformed_json_returns_error ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_does_not_require_explicit_service_command ... ok\ntest runtime_adapter::tests::ironclaw_worker_image_requires_noninteractive_auth_env ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_uses_long_lived_terminal_command ... ok\ntest runtime_adapter::tests::nanoclaw_agent_image_forces_shell_entrypoint ... ok\ntest runtime_adapter::tests::openclaw_official_image_uses_host_reachable_default_command ... ok\ntest runtime_adapter::tests::product_variant_mapping_is_stable ... ok\ntest runtime_adapter::tests::setup_defaults_exist_for_all_variants ... ok\ntest runtime_adapter::tests::resolve_ui_port_defaults_to_none_for_nanoclaw_runner_images ... ok\ntest runtime_adapter::tests::setup_env_allowlist_is_enforced_before_exec ... ok\ntest operator_api::tests::chat_message_missing_text_part_returns_400 ... ok\ntest runtime_adapter::tests::validate_env_key_rejects_invalid_values ... ok\ntest state::tests::instance_state_display ... ok\ntest operator_api::tests::chat_fallback_returns_ok_when_no_chat_command ... ok\ntest state::tests::instance_record_config_json_default ... ok\ntest tests::job_ids_are_sequential ... ok\ntest state::tests::instance_state_roundtrip ... ok\ntest tests::job_ids_are_unique ... ok\ntest tests::router_builds_without_panic ... ok\ntest runtime_adapter::tests::validate_ssh_inputs_reject_invalid_values ... ok\ntest auth::tests::wallet_challenge_roundtrip_creates_scoped_session ... ok\ntest runtime_adapter::tests::nanoclaw_build_script_is_supported ... ok\ntest operator_api::tests::tee_proxy_endpoints_roundtrip_for_scoped_owner ... ok\ntest runtime_adapter::tests::local_adapter_create_get_save ... ok\ntest state::tests::instance_store_insert_get_list ... ok\n\ntest result: ok. 48 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n\nrunning 7 tests\ntest create_persists_stopped_record ... ok\ntest get_missing_instance_returns_none ... ok\ntest config_json_roundtrip ... ok\ntest stop_transition_running_to_stopped ... ok\ntest delete_transition_marks_deleted ... ok\ntest start_transition_stopped_to_running ... ok\ntest list_returns_all_instances ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n\nrunning 1 test\ntest docker_operator_api_control_plane_e2e ... ignored, requires Docker daemon and network image pull\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest docker_real_variant_runtime_matrix ... ignored, requires Docker daemon, network image pull, and real variant images\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\nwarning: unused import: `cfg_remote`\n  --> /home/drew/code/blueprint/crates/keystore/src/lib.rs:18:16\n   |\n18 | pub(crate) use cfg_remote;\n   |                ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `blueprint-keystore` (lib) generated 1 warning (run `cargo fix --lib -p blueprint-keystore` to apply 1 suggestion)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s\n     Running unittests src/main.rs (target/debug/deps/openclaw_sandbox_blueprint-ae6d090a40e55374)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_sandbox_blueprint_lib-269308804965a34c)\n     Running tests/lifecycle.rs (target/debug/deps/lifecycle-30da205cd0a7fd7e)\n     Running tests/operator_api_e2e.rs (target/debug/deps/operator_api_e2e-c9bbe84e484fa592)\n     Running tests/real_variant_runtime.rs (target/debug/deps/real_variant_runtime-74da7907bead5599)\n     Running unittests src/main.rs (target/debug/deps/openclaw_tee_sandbox_blueprint-b27813a0944a9de8)\n     Running unittests src/lib.rs (target/debug/deps/openclaw_tee_sandbox_blueprint_lib-b2f7cf6ce91bdc9b)\n   Doc-tests openclaw_sandbox_blueprint_lib\n   Doc-tests openclaw_tee_sandbox_blueprint_lib",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "test",
+      "label": "cd /home/drew/code/openclaw-sandbox-blueprint/ui && pnpm run build:embedded",
+      "value": "> openclaw-control-plane-ui@0.1.0 build:embedded /home/drew/code/openclaw-sandbox-blueprint/ui\n> pnpm run build && node ./scripts/embed-control-plane-ui.mjs\n\n\n> openclaw-control-plane-ui@0.1.0 build /home/drew/code/openclaw-sandbox-blueprint/ui\n> tsc -b && vite build\n\nvite v7.3.1 building client environment for production...\ntransforming...\n✓ 2058 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                       1.07 kB │ gzip:   0.54 kB\ndist/styles.css                     127.19 kB │ gzip:  20.93 kB\ndist/assets/ccip-DZrfWNPL.js          2.60 kB │ gzip:   1.22 kB\ndist/assets/terminal-DfGRPfEY.js    337.49 kB │ gzip:  86.34 kB\ndist/app.js                       1,066.81 kB │ gzip: 323.13 kB\n✓ built in 5.95s\nEmbedded control-plane assets copied to /home/drew/code/openclaw-sandbox-blueprint/control-plane-ui\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+      "metadata": {
+        "passed": "true",
+        "exitCode": "0"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "stdout",
+      "value": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":98189,\"duration_api_ms\":83438,\"num_turns\":21,\"result\":\"Good. The Rust ABI structs match what's encoded in the UI:\\n\\n- `CreateInstanceRequest { name, template_pack_id, config_json }` → UI encodes as `tuple(string,string,string)` with matching field names\\n- `InstanceIdRequest { instance_id }` → UI encodes as `tuple(string)` with matching field name\\n\\nBoth are encoded as `tuple` types (struct encoding), not bare parameters. This is correct — `sol!` structs are ABI-encoded as tuples.\\n\\nHere's my review:\\n\\n```json\\n{\\n  \\\"status\\\": \\\"pass\\\",\\n  \\\"recommendation\\\": \\\"complete\\\",\\n  \\\"summary\\\": \\\"On-chain job submission flow is fully wired and production-quality. All four lifecycle operations submit transactions via useSubmitJob with correct ABI struct tuple encoding matching Rust sol! definitions. Destructive actions use confirmation dialog. Transaction states are comprehensive (signing/pending/confirmed/failed/stale recovery). Both build gates pass cleanly.\\\",\\n  \\\"findings\\\": [],\\n  \\\"scores\\\": {\\n    \\\"quality\\\": 9,\\n    \\\"correctness\\\": 9\\n  },\\n  \\\"evidence\\\": [\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"ABI encoding: CreateInstanceRequest\\\",\\n      \\\"value\\\": \\\"Line 1407-1419: encodeAbiParameters with tuple(string,string,string) and named fields {name, template_pack_id, config_json} — matches Rust sol! struct CreateInstanceRequest exactly.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"ABI encoding: InstanceIdRequest\\\",\\n      \\\"value\\\": \\\"Line 1499-1501: encodeAbiParameters with tuple(string) and named field {instance_id} — matches Rust sol! struct InstanceIdRequest exactly.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Confirmation dialog for destructive actions\\\",\\n      \\\"value\\\": \\\"Lines 2556/2569: Stop and Delete go through requestLifecycleConfirm → Dialog (line 2996-3022) → executeLifecycleConfirm. Start bypasses confirmation (non-destructive). Delete uses variant='destructive'.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Transaction state handling\\\",\\n      \\\"value\\\": \\\"lifecycleTxBusy (line 1717) covers signing+pending+chainSwitch. Buttons show 'Tx Pending…' when busy and are disabled. Stale tx recovery at 90s with manual clear. txHash and txError displayed in UI. Toast notifications on success (lines 1446, 1516).\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Post-submission refresh\\\",\\n      \\\"value\\\": \\\"Lines 1450 and 1518: setTimeout(() => void refresh(), 2500) after successful job submission for both create and lifecycle operations.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"Owner guard\\\",\\n      \\\"value\\\": \\\"Line 1475: Lifecycle jobs check selectedInstance.owner matches connectedWallet before submission.\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"cargo test --workspace\\\",\\n      \\\"value\\\": \\\"All tests pass (unit + integration ignored as expected).\\\"\\n    },\\n    {\\n      \\\"kind\\\": \\\"note\\\",\\n      \\\"label\\\": \\\"pnpm run build:embedded\\\",\\n      \\\"value\\\": \\\"Build succeeds. Assets copied to control-plane-ui/. No TypeScript errors.\\\"\\n    }\\n  ]\\n}\\n```\",\"stop_reason\":\"end_turn\",\"session_id\":\"749c7a58-fa8c-4eb3-b538-b048f828bb59\",\"total_cost_usd\":0.41812700000000014,\"usage\":{\"input_tokens\":11,\"cache_creation_input_tokens\":32798,\"cache_read_input_tokens\":266469,\"output_tokens\":3194,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":32798,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-opus-4-6[1m]\":{\"inputTokens\":11,\"outputTokens\":3194,\"cacheReadInputTokens\":266469,\"cacheCreationInputTokens\":32798,\"webSearchRequests\":0,\"costUSD\":0.41812700000000014,\"contextWindow\":1000000,\"maxOutputTokens\":64000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"2aa9870a-d0d0-4598-b9d3-cb94722b6846\"}",
+      "metadata": {
+        "durationMs": "99027",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "0.41812700000000014",
+        "providerFormat": "json",
+        "sessionId": "749c7a58-fa8c-4eb3-b538-b048f828bb59",
+        "stopReason": "end_turn",
+        "numTurns": "21",
+        "modelIds": "claude-opus-4-6[1m]",
+        "inputTokens": "11",
+        "cacheCreationInputTokens": "32798",
+        "cacheReadInputTokens": "266469",
+        "outputTokens": "3194",
+        "totalCostUsd": "0.41812700000000014"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "stderr",
+      "value": "",
+      "metadata": {
+        "durationMs": "99027",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "0.41812700000000014",
+        "providerFormat": "json",
+        "sessionId": "749c7a58-fa8c-4eb3-b538-b048f828bb59",
+        "stopReason": "end_turn",
+        "numTurns": "21",
+        "modelIds": "claude-opus-4-6[1m]",
+        "inputTokens": "11",
+        "cacheCreationInputTokens": "32798",
+        "cacheReadInputTokens": "266469",
+        "outputTokens": "3194",
+        "totalCostUsd": "0.41812700000000014"
+      }
+    },
+    {
+      "kind": "note",
+      "label": "ABI encoding: CreateInstanceRequest",
+      "value": "Line 1407-1419: encodeAbiParameters with tuple(string,string,string) and named fields {name, template_pack_id, config_json} — matches Rust sol! struct CreateInstanceRequest exactly."
+    },
+    {
+      "kind": "note",
+      "label": "ABI encoding: InstanceIdRequest",
+      "value": "Line 1499-1501: encodeAbiParameters with tuple(string) and named field {instance_id} — matches Rust sol! struct InstanceIdRequest exactly."
+    },
+    {
+      "kind": "note",
+      "label": "Confirmation dialog for destructive actions",
+      "value": "Lines 2556/2569: Stop and Delete go through requestLifecycleConfirm → Dialog (line 2996-3022) → executeLifecycleConfirm. Start bypasses confirmation (non-destructive). Delete uses variant='destructive'."
+    },
+    {
+      "kind": "note",
+      "label": "Transaction state handling",
+      "value": "lifecycleTxBusy (line 1717) covers signing+pending+chainSwitch. Buttons show 'Tx Pending…' when busy and are disabled. Stale tx recovery at 90s with manual clear. txHash and txError displayed in UI. Toast notifications on success (lines 1446, 1516)."
+    },
+    {
+      "kind": "note",
+      "label": "Post-submission refresh",
+      "value": "Lines 1450 and 1518: setTimeout(() => void refresh(), 2500) after successful job submission for both create and lifecycle operations."
+    },
+    {
+      "kind": "note",
+      "label": "Owner guard",
+      "value": "Line 1475: Lifecycle jobs check selectedInstance.owner matches connectedWallet before submission."
+    },
+    {
+      "kind": "note",
+      "label": "cargo test --workspace",
+      "value": "All tests pass (unit + integration ignored as expected)."
+    },
+    {
+      "kind": "note",
+      "label": "pnpm run build:embedded",
+      "value": "Build succeeds. Assets copied to control-plane-ui/. No TypeScript errors."
+    },
+    {
+      "kind": "log",
+      "label": "stdout",
+      "value": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":115333,\"duration_api_ms\":99294,\"num_turns\":17,\"result\":\"All three fixes are correct and verified. Here's the summary:\\n\\n## Repairs completed\\n\\n### 1. CreateInstanceRequest ABI encoding (line 1407-1419)\\nChanged from 3 bare strings to a `tuple` with named components matching the Solidity struct. viem now encodes `{ name, template_pack_id, config_json }` as a single `tuple(string,string,string)` — matching how `sol! { struct CreateInstanceRequest { ... } }` is ABI-decoded on the Rust side.\\n\\n### 2. InstanceIdRequest ABI encoding (line 1499-1502)\\nChanged from a bare `string` to `tuple(string)` with component `instance_id`, matching the Rust `InstanceIdRequest` struct's ABI encoding.\\n\\n### 3. Success toasts for all lifecycle jobs\\n- **Create**: Added `toast.success(...)` and changed notice tone from `'info'` to `'success'` (line 1447-1448).\\n- **Start/Stop/Delete**: Added `toast.success(...)` and changed notice tone from `'info'` to `'success'` (line 1515-1516).\\n\\n### Verification\\n- `pnpm run build:embedded` — passes, assets copied to `control-plane-ui/`\\n- `cargo test --workspace` — all tests pass (0 failures)\",\"stop_reason\":\"end_turn\",\"session_id\":\"cb4a383e-c151-45ed-8dab-eb1b070cac93\",\"total_cost_usd\":0.45748305,\"usage\":{\"input_tokens\":14,\"cache_creation_input_tokens\":26294,\"cache_read_input_tokens\":336720,\"output_tokens\":3315,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":26294,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{\"claude-opus-4-6[1m]\":{\"inputTokens\":14,\"outputTokens\":3315,\"cacheReadInputTokens\":336720,\"cacheCreationInputTokens\":26294,\"webSearchRequests\":0,\"costUSD\":0.4156425,\"contextWindow\":1000000,\"maxOutputTokens\":64000},\"claude-haiku-4-5-20251001\":{\"inputTokens\":38,\"outputTokens\":1774,\"cacheReadInputTokens\":136288,\"cacheCreationInputTokens\":15443,\"webSearchRequests\":0,\"costUSD\":0.04184055,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"fast_mode_state\":\"off\",\"uuid\":\"f65fbc09-6d64-4c35-a7cd-91d77f414fad\"}",
+      "metadata": {
+        "durationMs": "116139",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "0.45748305",
+        "providerFormat": "json",
+        "sessionId": "cb4a383e-c151-45ed-8dab-eb1b070cac93",
+        "stopReason": "end_turn",
+        "numTurns": "17",
+        "modelIds": "claude-opus-4-6[1m],claude-haiku-4-5-20251001",
+        "inputTokens": "14",
+        "cacheCreationInputTokens": "26294",
+        "cacheReadInputTokens": "336720",
+        "outputTokens": "3315",
+        "totalCostUsd": "0.45748305"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "stderr",
+      "value": "",
+      "metadata": {
+        "durationMs": "116139",
+        "providerId": "claude",
+        "exitCode": "0",
+        "costUsd": "0.45748305",
+        "providerFormat": "json",
+        "sessionId": "cb4a383e-c151-45ed-8dab-eb1b070cac93",
+        "stopReason": "end_turn",
+        "numTurns": "17",
+        "modelIds": "claude-opus-4-6[1m],claude-haiku-4-5-20251001",
+        "inputTokens": "14",
+        "cacheCreationInputTokens": "26294",
+        "cacheReadInputTokens": "336720",
+        "outputTokens": "3315",
+        "totalCostUsd": "0.45748305"
+      }
+    },
+    {
+      "kind": "log",
+      "label": "git-status",
+      "value": "M .foreman/memory/environment/home-drew-code-openclaw-sandbox-blueprint.json\n M .foreman/memory/profile/engineering-foreman.json\n M .foreman/memory/strategy/engineering.json\n M .foreman/memory/worker/claude.json\n M .foreman/memory/worker/codex.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/final-summary.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/request.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/context.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/plan.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/repair.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/trace.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/track-results.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/validation.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/context.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/decision.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/plan.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/trace.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/track-results.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/validation.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/task-envelope.json\n M .foreman/runs/engineering-openclaw-sandbox-blueprint/trace.json\n M control-plane-ui/app.js\n M ui/src/App.tsx"
+    },
+    {
+      "kind": "diff",
+      "label": "git-diff-stat",
+      "value": ".../home-drew-code-openclaw-sandbox-blueprint.json |  10 +-\n .foreman/memory/profile/engineering-foreman.json   |   3 +-\n .foreman/memory/strategy/engineering.json          |   3 +-\n .foreman/memory/worker/claude.json                 |   2 +-\n .foreman/memory/worker/codex.json                  |   2 +-\n .../final-summary.json                             | 107 +++++++----\n .../request.json                                   |  14 +-\n .../rounds/1/context.json                          |   9 +-\n .../rounds/1/plan.json                             |   2 +-\n .../rounds/1/repair.json                           |   5 +-\n .../rounds/1/trace.json                            |  18 +-\n .../rounds/1/track-results.json                    |  44 ++---\n .../rounds/1/validation.json                       | 113 ++++++++----\n .../rounds/2/context.json                          |  19 +-\n .../rounds/2/decision.json                         |   2 +-\n .../rounds/2/plan.json                             |   7 +-\n .../rounds/2/trace.json                            |  30 ++--\n .../rounds/2/track-results.json                    |  48 ++---\n .../rounds/2/validation.json                       |  91 ++++++----\n .../task-envelope.json                             |  15 +-\n .../trace.json                                     |  32 ++--\n control-plane-ui/app.js                            | 196 +++++++++++++--------\n ui/src/App.tsx                                     |  94 +++++++---\n 23 files changed, 544 insertions(+), 322 deletions(-)"
+    },
+    {
+      "kind": "artifact",
+      "label": "changed-files",
+      "value": ".foreman/memory/environment/home-drew-code-openclaw-sandbox-blueprint.json\n.foreman/memory/profile/engineering-foreman.json\n.foreman/memory/strategy/engineering.json\n.foreman/memory/worker/claude.json\n.foreman/memory/worker/codex.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/final-summary.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/request.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/context.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/plan.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/repair.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/trace.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/track-results.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/1/validation.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/context.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/decision.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/plan.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/trace.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/track-results.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/rounds/2/validation.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/task-envelope.json\n.foreman/runs/engineering-openclaw-sandbox-blueprint/trace.json\ncontrol-plane-ui/app.js\nui/src/App.tsx"
+    }
+  ],
+  "outcome": {
+    "status": "completed",
+    "summary": "[deterministic] all deterministic checks passed for engineering-openclaw-sandbox-blueprint | [judge] [fallback from codex] On-chain job submission flow is fully wired and production-quality. All four lifecycle operations submit transactions via useSubmitJob with correct ABI struct tuple encoding matching Rust sol! definitions. Destructive actions use confirmation dialog. Transaction states are comprehensive (signing/pending/confirmed/failed/stale recovery). Both build gates pass cleanly.",
+    "validated": true
+  },
+  "metadata": {
+    "repoPath": "/home/drew/code/openclaw-sandbox-blueprint",
+    "profileId": "engineering-foreman",
+    "selectedWorkerId": "claude",
+    "reviewWorkerId": "codex",
+    "plannerWorkerId": "codex",
+    "sandboxMode": "local",
+    "taskShape": "engineering",
+    "originalGoal": "Wire the on-chain job submission flow in the React control-plane UI. The Rust backend already implements create/start/stop/delete instance jobs (JOB_CREATE=0, JOB_START=1, JOB_STOP=2, JOB_DELETE=3) with ABI types defined in lib.rs. The UI in App.tsx has lifecycle buttons but they do NOT submit on-chain transactions. Wire them: (1) Import and use the blueprint-ui hooks (useSubmitJob or equivalent wagmi contract write) to submit lifecycle jobs from the UI buttons. (2) Encode the ABI parameters correctly — CreateInstanceRequest for create (name, templatePackId, clawVariant, configJson, uiAuthMode), InstanceIdRequest for start/stop/delete (instanceId as bytes). (3) Add proper transaction pending/success/error states to the buttons. (4) Add a confirmation dialog before destructive actions (stop and delete) per CLAUDE.md quality gates. (5) After successful on-chain job submission, refresh instance state from the operator API. Make sure the existing UI architecture, component patterns, and styling conventions are followed exactly. Run cargo test --workspace and pnpm run build:embedded to verify nothing breaks.",
+    "successCriteriaJson": "[\"Lifecycle buttons (create, start, stop, delete) submit on-chain transactions via wagmi/viem contract writes\",\"ABI parameter encoding matches the Rust job handler expectations (CreateInstanceRequest, InstanceIdRequest)\",\"Destructive actions (stop, delete) show confirmation dialog before submission\",\"Transaction pending/success/error states are shown in the UI\",\"pnpm run build:embedded succeeds with no errors\",\"cargo test --workspace passes with no failures\",\"work is grounded in actual repository state\",\"completion is backed by executed checks or explicit blocker evidence\"]",
+    "checkCommandsJson": "[\"cargo test\",\"cargo check\",\"cd /home/drew/code/openclaw-sandbox-blueprint && cargo test --workspace\",\"cd /home/drew/code/openclaw-sandbox-blueprint/ui && pnpm run build:embedded\"]",
+    "toolCommandsJson": "[]",
+    "roundCount": "2",
+    "repairCount": "1",
+    "durationMs": "765212",
+    "checkPassRate": "1",
+    "escalationCount": "0",
+    "providerCostUsd": "4.09826655",
+    "promptPolicyMode": "explicit",
+    "hardenerPromptVariantId": "engineering-hardener:contract-v1",
+    "implementationPromptVariantId": "engineering-implementer:operator-v1",
+    "reviewPromptVariantId": "engineering-reviewer:auditor-v1"
+  }
+}

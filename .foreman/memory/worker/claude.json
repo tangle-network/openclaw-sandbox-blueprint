@@ -1,6 +1,6 @@
 {
   "workerId": "claude",
-  "sampleCount": 1,
+  "sampleCount": 3,
   "successRate": 1,
   "commonFailureClasses": []
 }

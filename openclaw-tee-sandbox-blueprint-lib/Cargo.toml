@@ -8,4 +8,4 @@ license.workspace = true
 
 [dependencies]
 openclaw-sandbox-blueprint-lib = { path = "../openclaw-sandbox-blueprint-lib" }
-blueprint-sdk = { git = "https://github.com/tangle-network/blueprint.git", branch = "main", default-features = false, features = ["std", "tangle", "tracing", "macros"] }
+blueprint-sdk = { version = "0.2.0-alpha.5", default-features = false, features = ["std", "tangle", "tracing", "macros"] }
