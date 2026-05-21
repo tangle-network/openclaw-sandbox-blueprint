@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
-import "tnt-core/libraries/Types.sol";
+import "tnt-core/src/libraries/Types.sol";
 
 /// @notice Minimal interface for Tangle blueprint registration.
 interface ITangle {
