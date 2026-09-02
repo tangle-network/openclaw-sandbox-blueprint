@@ -288,7 +288,7 @@ impl InstanceStore {
             .lock()
             .map_err(|e| InstanceError::Store(e.to_string()))?;
         let mut records: Vec<_> = map.values().cloned().collect();
-        records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        records.sort_by_key(|record| std::cmp::Reverse(record.created_at));
         Ok(records)
     }
 }

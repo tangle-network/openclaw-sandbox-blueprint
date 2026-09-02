@@ -156,9 +156,7 @@ fn wait_for_http_ok(
         last_stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         std::thread::sleep(Duration::from_millis(500));
     }
-    let logs = container_ref
-        .map(tail_container_logs)
-        .unwrap_or_else(String::new);
+    let logs = container_ref.map(tail_container_logs).unwrap_or_default();
     panic!(
         "timed out waiting for HTTP UI at {url} (variant={variant}); last curl stderr: {last_stderr}; recent container logs: {logs}"
     );
