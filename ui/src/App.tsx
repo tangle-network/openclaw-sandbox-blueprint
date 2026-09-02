@@ -9,6 +9,7 @@ import {
   copyText,
   truncateAddress,
   type AgentBranding,
+  type Session,
 } from '@tangle-network/agent-ui';
 import { selectedChainIdStore, useSubmitJob } from '@tangle-network/blueprint-ui';
 import {
@@ -1062,7 +1063,7 @@ function InstanceRuntimePanel() {
             setPendingSessionDelete(null);
             setNotice({ tone: 'success', text: `Session "${sessionTitle}" deleted.` });
           },
-          onError: (error) => {
+          onError: (error: Error) => {
             sessionDeleteTimerRef.current = null;
             setPendingSessionDelete(null);
             setNotice({ tone: 'error', text: `Delete failed: ${(error as Error).message}` });
@@ -2783,11 +2784,11 @@ function InstanceRuntimePanel() {
                             className="w-full"
                             onClick={() =>
                               createSessionMutation.mutate('Session', {
-                                onSuccess: (session) => {
+                                onSuccess: (session: Session) => {
                                   setActiveSessionId(session.id);
                                   setNotice({ tone: 'success', text: 'Chat session created.' });
                                 },
-                                onError: (error) => {
+                                onError: (error: Error) => {
                                   setNotice({ tone: 'error', text: `Session create failed: ${(error as Error).message}` });
                                 },
                               })
@@ -2797,7 +2798,7 @@ function InstanceRuntimePanel() {
                             {createSessionMutation.isPending ? 'Creating…' : 'New Session'}
                           </Button>
 
-                          {(sessions.data ?? []).map((session) => (
+                          {(sessions.data ?? []).map((session: Session) => (
                             <div key={session.id} className="rounded-lg border border-claw-elements-dividerColor p-2">
                               <button
                                 type="button"
@@ -2820,7 +2821,7 @@ function InstanceRuntimePanel() {
                                     renameSessionMutation.mutate(
                                       { sessionId: session.id, title: title.trim() },
                                       {
-                                        onError: (error) => {
+                                        onError: (error: Error) => {
                                           setNotice({ tone: 'error', text: `Rename failed: ${(error as Error).message}` });
                                         },
                                       },
@@ -2851,7 +2852,7 @@ function InstanceRuntimePanel() {
                               messages={sessionStream.messages}
                               partMap={sessionStream.partMap}
                               isStreaming={sessionStream.isStreaming}
-                              onSend={(text) => {
+                              onSend={(text: string) => {
                                 void sessionStream.send(text);
                               }}
                               branding={CHAT_BRANDING}
