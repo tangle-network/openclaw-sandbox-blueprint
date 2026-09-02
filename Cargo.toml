@@ -25,3 +25,7 @@ debug = 1
 [patch."https://github.com/tangle-network/blueprint.git"]
 blueprint-sdk = { version = "=0.2.0-alpha.6" }
 blueprint-producers-extra = { path = "../blueprint/crates/producers-extra" }
+
+[patch.crates-io]
+# Keep libp2p 0.56 while removing its vulnerable yamux 0.12 compatibility path.
+libp2p-yamux = { path = "vendor/libp2p-yamux" }
