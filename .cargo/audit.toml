@@ -1,0 +1,20 @@
+# Cargo audit scans optional packages recorded in Cargo.lock.
+# Keep only unreachable package advisories on this narrow exception list.
+# Recheck each entry when its upstream dependency changes.
+
+[advisories]
+ignore = [
+    # h2 0.3.27 is only the legacy hyper-0.14 feature of aws-smithy-http-client.
+    "RUSTSEC-2026-0258",
+    # libp2p-mdns 0.48.0 is optional and is not in the active feature graph.
+    "RUSTSEC-2026-0118",
+    "RUSTSEC-2026-0119",
+    # rustls-webpki 0.101.7 is only the legacy rustls 0.21 feature.
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+    # tokio-tar is optional Anvil test support and has no upstream fix.
+    "RUSTSEC-2025-0111",
+    # tracing-subscriber 0.2.25 is an unused optional legacy test dependency.
+    "RUSTSEC-2025-0055",
+]
