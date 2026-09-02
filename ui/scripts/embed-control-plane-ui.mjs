@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +7,7 @@ const uiRoot = path.resolve(__dirname, '..');
 const distDir = path.join(uiRoot, 'dist');
 const targetDir = path.resolve(uiRoot, '..', 'control-plane-ui');
 
+await rm(targetDir, { recursive: true, force: true });
 await mkdir(targetDir, { recursive: true });
 
 for (const fileName of ['app.js', 'styles.css']) {
