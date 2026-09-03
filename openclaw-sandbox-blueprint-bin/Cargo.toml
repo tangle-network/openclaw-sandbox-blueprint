@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 openclaw-sandbox-blueprint-lib = { path = "../openclaw-sandbox-blueprint-lib" }
-blueprint-sdk = { version = "0.2.0-alpha.5", default-features = false, features = ["std", "tangle"] }
-blueprint-producers-extra = { git = "https://github.com/tangle-network/blueprint.git", branch = "main", features = ["cron"] }
+blueprint-sdk = { git = "https://github.com/tangle-network/blueprint.git", rev = "5405c0118f3b05e334076f708d1e884e72e62afd", default-features = false, features = ["std", "tangle"] }
+blueprint-producers-extra = { git = "https://github.com/tangle-network/blueprint.git", rev = "5405c0118f3b05e334076f708d1e884e72e62afd", features = ["cron"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
