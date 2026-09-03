@@ -108,8 +108,8 @@ impl AuthService {
         self.inner.resolve_bearer(token).map(|claims| match claims {
             ScopedSessionClaims::Operator => SessionClaims::Operator,
             ScopedSessionClaims::Scoped { scope_id, owner } => SessionClaims::Scoped {
-                instance_id: scope_id,
-                owner,
+                instance_id: scope_id.to_string(),
+                owner: owner.to_string(),
             },
         })
     }
