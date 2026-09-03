@@ -27,6 +27,8 @@ libp2p-dns = { path = "vendor/libp2p-dns" }
 libp2p-mdns = { path = "vendor/libp2p-mdns" }
 # Keep the tokio-tar API while using the maintained astral-tokio-tar implementation.
 tokio-tar = { path = "vendor/tokio-tar" }
+# Keep the libp2p 0.56 API while removing its vulnerable yamux 0.12 compatibility path.
+libp2p-yamux = { path = "vendor/libp2p-yamux" }
 
 # Use local blueprint SDK checkout for development/testing.
 # Remove this section before publishing or when the upstream crates are published.
