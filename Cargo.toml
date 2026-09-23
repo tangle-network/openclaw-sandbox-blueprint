@@ -23,5 +23,9 @@ debug = 1
 # Use local blueprint SDK checkout for development/testing.
 # Remove this section before publishing or when the upstream crates are published.
 [patch."https://github.com/tangle-network/blueprint.git"]
-blueprint-sdk = { version = "=0.2.0-alpha.6" }
+blueprint-sdk = { path = "../blueprint/crates/sdk" }
 blueprint-producers-extra = { path = "../blueprint/crates/producers-extra" }
+
+[patch.crates-io]
+blueprint-networking = { git = "https://github.com/tangle-network/blueprint.git", rev = "54f06f2e8cc697435c862f9e24fcefe45aab3324", package = "blueprint-networking" }
+libp2p-yamux = { path = "../ai-agent-sandbox/vendor/libp2p-yamux" }
