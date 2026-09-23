@@ -13,15 +13,13 @@ edition = "2024"
 description = "OpenClaw Sandbox Blueprint for Tangle Network"
 license = "MIT OR Apache-2.0"
 
+[workspace.dependencies]
+blueprint-sdk = { git = "https://github.com/tangle-network/blueprint.git", rev = "54f06f2e8cc697435c862f9e24fcefe45aab3324", package = "blueprint-sdk", default-features = false }
+blueprint-producers-extra = { git = "https://github.com/tangle-network/blueprint.git", rev = "54f06f2e8cc697435c862f9e24fcefe45aab3324", package = "blueprint-producers-extra", features = ["cron"] }
+
 # Reduce debug build sizes (~60-70% smaller binaries)
 [profile.dev]
 split-debuginfo = "unpacked"
 
 [profile.dev.package."*"]
 debug = 1
-
-# Use local blueprint SDK checkout for development/testing.
-# Remove this section before publishing or when the upstream crates are published.
-[patch."https://github.com/tangle-network/blueprint.git"]
-blueprint-sdk = { version = "=0.2.0-alpha.6" }
-blueprint-producers-extra = { path = "../blueprint/crates/producers-extra" }
