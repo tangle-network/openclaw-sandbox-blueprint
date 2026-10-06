@@ -125,4 +125,4 @@ Expected real-image pass signal:
 ## Current CI Contract
 
 - `ci.yml` runs fmt/lint/unit + synthetic Docker integration.
-- `real-variant-runtime.yml` runs weekly/manual real-image runtime validation.
+- Real-image runtime validation is manual: `./scripts/ci/run-real-variant-runtime-tests.sh`.
