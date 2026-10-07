@@ -17,7 +17,7 @@ permissions:
 jobs:
   fmt:
     name: Rustfmt
-    runs-on: [self-hosted, ci-public]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +29,9 @@ jobs:
 
       - name: Link blueprint SDK checkout
         run: ln -sfn "$GITHUB_WORKSPACE/blueprint" "$GITHUB_WORKSPACE/../blueprint"
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -39,7 +42,7 @@ jobs:
 
   lint:
     name: Clippy
-    runs-on: [self-hosted, ci-public]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -51,6 +54,9 @@ jobs:
 
       - name: Link blueprint SDK checkout
         run: ln -sfn "$GITHUB_WORKSPACE/blueprint" "$GITHUB_WORKSPACE/../blueprint"
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -65,7 +71,7 @@ jobs:
 
   test:
     name: Unit tests
-    runs-on: [self-hosted, ci-public]
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +85,9 @@ jobs:
       - name: Link blueprint SDK checkout
         run: ln -sfn "$GITHUB_WORKSPACE/blueprint" "$GITHUB_WORKSPACE/../blueprint"
 
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: swatinem/rust-cache@v2
@@ -90,7 +99,7 @@ jobs:
 
   docker-integration:
     name: Docker integration (real runtime)
-    runs-on: [self-hosted, ci-public]
+    runs-on: ubuntu-latest
     needs: [test]
     timeout-minutes: 45
     steps:
@@ -105,6 +114,9 @@ jobs:
       - name: Link blueprint SDK checkout
         run: ln -sfn "$GITHUB_WORKSPACE/blueprint" "$GITHUB_WORKSPACE/../blueprint"
 
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: swatinem/rust-cache@v2
@@ -116,7 +128,7 @@ jobs:
 
   security:
     name: Security audit
-    runs-on: [self-hosted, ci-public]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
