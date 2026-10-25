@@ -76,7 +76,7 @@ TEE policy for this repo:
 - Fail fast on runtime prerequisites (for example, missing IronClaw auth env).
 - Keep default UX one-click and move low-level controls into explicit
   "Advanced" sections.
-- Keep synthetic CI and real-image CI separate:
+- Keep synthetic Docker checks and real-image qualification separate:
   - synthetic lane for fast deterministic checks
   - real-image lane for weekly/manual production-adjacent proof
 - Record evidence with exact commands and outcomes in PR descriptions.
@@ -122,7 +122,6 @@ Expected real-image pass signal:
   startup command profile.
 - If IronClaw is unreachable, re-check `NEARAI_*` env and startup logs.
 
-## Current CI Contract
+## Local qualification contract
 
-- `ci.yml` runs fmt/lint/unit + synthetic Docker integration.
-- Real-image runtime validation is manual: `./scripts/ci/run-real-variant-runtime-tests.sh`.
+Use the admitted [local qualification](CONTRIBUTING.md#local-qualification) for formatting, Clippy, workspace tests and advisories. Automatic branch CI is retired. Keep synthetic Docker and real-image runtime proofs separate on admitted disposable hostlab Docker hosts; the scripts perform label-based cleanup and must not share production or another lane's daemon. Real-image validation remains manual through `./scripts/ci/run-real-variant-runtime-tests.sh` and its actual authentication/start/reachability checks.
