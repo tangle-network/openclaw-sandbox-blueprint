@@ -307,8 +307,7 @@ SERVICE_ID=<id> HTTP_RPC_ENDPOINT=<url> KEYSTORE_URI=<uri> \
 - State-changing operations are jobs only (`create`, `start`, `stop`, `delete`).
 - Read-only operations stay in query surfaces (operator HTTP API).
 - Ship in small, composable PRs with explicit validation evidence.
-- CI runs Rust checks plus synthetic Docker integration tests in
-  `.github/workflows/ci.yml`.
+- Use the admitted [local qualification](CONTRIBUTING.md#local-qualification) for Rust checks and the separate disposable-host Docker proofs. Automatic branch CI is retired.
 - Use `scripts/ci/run-real-variant-runtime-tests.sh` before releases to verify
   official OpenClaw/IronClaw runtime images plus NanoClaw upstream build path.
 

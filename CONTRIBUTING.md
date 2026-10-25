@@ -16,13 +16,19 @@
 - Exclude local task notes (for example `CODEX_*`) from commits.
 - Do not include co-author trailers unless explicitly requested.
 
-## Building and testing
+## Local qualification
+
+Automatic PR/main-push CI is retired. Merge the current default branch and qualify the affected source through the maintained admitted gate. The comprehensive Rust reference retains the previous formatting, Clippy, workspace-test and advisory checks:
 
 ```bash
-cargo check --all-features
-cargo test --all
-cargo clippy --all-features -- -D warnings
+beelink-gate auto https://github.com/tangle-network/openclaw-sandbox-blueprint.git <full-sha> -- bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace && cargo audit'
 ```
+
+The admitted host needs Rust with rustfmt/Clippy, protoc and cargo-audit. Cargo manifests own SDK revisions and vendored patches. Compilation through Clippy precedes the workspace tests. Workflow/docs-only changes use YAML, content/link and exact-diff checks.
+
+The retained `scripts/ci/run-docker-integration-tests.sh` exercises actual Docker with synthetic images. Run it separately on an admitted disposable hostlab Docker host; its label-based cleanup must not share a production or another lane's Docker daemon. The distinct real-image `scripts/ci/run-real-variant-runtime-tests.sh` remains required for release/runtime claims, on the same disposable ownership basis with its explicit authentication prerequisites. Source checks and synthetic images do not establish hosted variant readiness. Neither this source qualification nor a passing local script authorizes on-chain state changes, production deployment or model requests.
+
+UI changes retain the existing embedded build/parity and library qualification in [CLAUDE.md](CLAUDE.md#verified-ui-build-truths-march-4-2026).
 
 ## PR standards
 
